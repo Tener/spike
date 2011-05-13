@@ -1,0 +1,15 @@
+Name:                treeweb
+Version:             0.1
+Synopsis:            Experimental web browser
+License:             BSD3
+License-file:        LICENSE
+Author:              Krzysztof Skrzętnicki
+Maintainer:          gtener@gmail.com
+Category:            Web
+Build-type:          Simple
+Cabal-version:       >=1.2
+
+Executable treeweb
+  Main-is:           treeweb.hs
+  Hs-source-dirs:    src  
+  Build-depends:       webkit, gtk, base
