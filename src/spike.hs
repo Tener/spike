@@ -7,6 +7,8 @@ import Graphics.UI.Gtk
 
 import Data.IORef
 
+import Control.Applicative
+
 import Control.Monad.Trans
 
 {-
@@ -31,7 +33,7 @@ page = do
   -- plugins are causing trouble. disable them.
   settings <- webViewGetWebSettings web
   set settings [webSettingsEnablePlugins := False]
-  
+      
   -- menu
   menu <- hBoxNew False 1
   quit <- buttonNewWithLabel "Quit"
