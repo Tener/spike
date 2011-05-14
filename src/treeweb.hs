@@ -2,6 +2,7 @@ module Main where
 
 import Graphics.UI.Gtk.WebKit.WebFrame 
 import Graphics.UI.Gtk.WebKit.WebView
+import Graphics.UI.Gtk.WebKit.WebSettings
 import Graphics.UI.Gtk
 
 import Control.Monad.Trans
@@ -15,7 +16,7 @@ Links:
 -}
 
 page = do
-  -- tworzymy kontrolkę webkit
+  -- webkit widget
   web <- webViewNew
   webViewSetTransparent web True
   let loadHome = webViewLoadUri web "http://google.com"
@@ -25,8 +26,11 @@ page = do
   widgetSetSizeRequest web 1240 1024
   print =<< widgetGetSizeRequest web
   
-
-  -- tworzymy menu
+  -- plugins are causing trouble. disable them.
+  settings <- webViewGetWebSettings web
+  set settings [webSettingsEnablePlugins := False]
+  
+  -- menu
   menu <- hBoxNew False 1
   quit <- buttonNewWithLabel "Quit"
   reload <- buttonNewWithLabel "Reload"
@@ -37,11 +41,12 @@ page = do
   containerAdd menu reload
   containerAdd menu goHome
 
-  -- zapełniamy stronę
+  -- fill the page
   page <- vBoxNew False 10
   containerAdd page menu
   containerAdd page web
   
+  widgetShowAll page
   return page
 
 main :: IO ()
