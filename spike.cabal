@@ -1,4 +1,4 @@
-Name:                treeweb
+Name:                spike
 Version:             0.1
 Synopsis:            Experimental web browser
 License:             BSD3
@@ -9,8 +9,8 @@ Category:            Web
 Build-type:          Simple
 Cabal-version:       >=1.2
 
-Executable treeweb
-  Main-is:           treeweb.hs
+Executable spike
+  Main-is:           spike.hs
   Hs-source-dirs:    src  
-  Build-depends:     webkit, gtk, base, mtl > 2
+  Build-depends:     webkit == 0.12.1, gtk, base, mtl > 2
   Ghc-options:       -threaded
