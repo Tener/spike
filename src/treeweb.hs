@@ -5,6 +5,8 @@ import Graphics.UI.Gtk.WebKit.WebView
 import Graphics.UI.Gtk.WebKit.WebSettings
 import Graphics.UI.Gtk
 
+import Data.IORef
+
 import Control.Monad.Trans
 
 {-
@@ -42,12 +44,12 @@ page = do
   containerAdd menu goHome
 
   -- fill the page
-  page <- vBoxNew False 10
-  containerAdd page menu
-  containerAdd page web
+  page' <- vBoxNew False 10
+  containerAdd page' menu
+  containerAdd page' web
   
-  widgetShowAll page
-  return page
+  widgetShowAll page'
+  return page'
 
 main :: IO ()
 main = do
@@ -56,12 +58,14 @@ main = do
 
   -- notatnik na instancje web view
   nb <- notebookNew
+  cnt <- newIORef (1 :: Int)
   let newPage = do
          p <- page
-         ix <- notebookAppendPage nb p "foo"
+         cnt' <- readIORef cnt
+         writeIORef cnt (cnt' + 1)
+         ix <- notebookAppendPage nb p ("Page: " ++ show cnt')  
          widgetShowAll nb
          print ix
-
   newPage
 
   let cb = do
@@ -73,11 +77,9 @@ main = do
          case ev of
            (_,"t",[Control]) -> liftIO newPage >> return True
            _ -> return False
-
   on nb keyPressEvent $ cb
   on nb keyReleaseEvent $ cb
 
-               
   -- pokazujemy wszystko i zapadamy w pętle
   window <- windowNew
   onDestroy window mainQuit
