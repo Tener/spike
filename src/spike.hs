@@ -11,9 +11,9 @@ import Graphics.UI.Gtk
 
 import Data.IORef
 
-import Control.Applicative
-
 import Control.Monad.Trans
+
+import Data.Tree as Tree
 
 {-
 
@@ -39,6 +39,7 @@ hookupWebView web = do
          return True
 
   let foo str webFr netReq webNavAct _webPolDec = do
+                      print "-------BEGIN-------"
                       print str
                       print =<< webFrameGetName webFr
                       print =<< webFrameGetUri webFr
@@ -46,11 +47,12 @@ hookupWebView web = do
                       print =<< webNavigationActionGetReason webNavAct
                       --print =<< webNavigationActionGetTargetFrame webNavAct
                       --print (str,t1,t2,t3,t4,t5)
+                      print "--------END--------"
                       return False
 
   on web navigationPolicyDecisionRequested $ foo "navigationPolicyDecisionRequested"
 
---  on web newWindowPolicyDecisionRequested $ foo "newWindowPolicyDecisionRequested"
+  on web newWindowPolicyDecisionRequested $ foo "newWindowPolicyDecisionRequested"
 
 
 page = do
@@ -60,9 +62,6 @@ page = do
   let loadHome = webViewLoadUri web "http://google.com"
   loadHome
   webViewSetMaintainsBackForwardList web False
---  print =<< widgetGetSizeRequest web
---  widgetSetSizeRequest web 1240 1024
---  print =<< widgetGetSizeRequest web
   
   -- plugins are causing trouble. disable them.
   settings <- webViewGetWebSettings web
@@ -84,21 +83,17 @@ page = do
   containerAdd menu quit
   containerAdd menu reload
   containerAdd menu goHome
+  widgetSetSizeRequest menu 1024 50
 
   -- fill the page
-  page' <- vBoxNew False 10
+  page' <- vPanedNew -- vBoxNew False 1
   containerAdd page' menu
   containerAdd page' scrollWeb
   
   widgetShowAll page'
   return page'
 
-main :: IO ()
-main = do
-  -- inicjalizacja
-  initGUI
-
-  -- notatnik na instancje web view
+notebook = do
   nb <- notebookNew
   cnt <- newIORef (1 :: Int)
   let newPage = do
@@ -110,25 +105,64 @@ main = do
          print ix
   newPage
 
-  let cb = do
+  let cb str = do
          mods <- eventModifier
          key <- eventKeyVal
          name <- eventKeyName
          let ev = (key,name,mods)
          liftIO $ print ev
          case ev of
-           (_,"t",[Control]) -> liftIO newPage >> return True
+           (_,"t",[Control]) -> liftIO (print str >> newPage) >> return True
            _ -> return False
-  on nb keyPressEvent $ cb
-  on nb keyReleaseEvent $ cb
+  on nb keyPressEvent $ cb "keyPress"
+  return nb
+
+main :: IO ()
+main = do
+  -- inicjalizacja
+  initGUI
+
+  -- notatnik na instancje web view
+  nb <- notebook
+
+  -- widget widoku drzewa
+  let mkTree sub x = Node x sub
+      sub1 = map (mkTree []) [1,2,3]
+      sub2 = map (mkTree []) [4,5,6]
+      sub3 = map (mkTree []) [7,8,9]
+      t = zipWith mkTree [sub1,sub2,sub3] [10,20,30]
+  tstore <- treeStoreNew (t :: [Tree Int])
+  tv <- treeViewNewWithModel tstore
+  tv' <- frameNew
+  containerAdd tv' tv
+  frameSetLabel tv' "TreeView"
+  
+
+  -- widget na widok drzewa i na notatnik
+
+  whole <- vPanedNew
+  containerAdd whole nb
+  containerAdd whole tv'
 
   -- pokazujemy wszystko i zapadamy w pętle
   window <- windowNew
   onDestroy window mainQuit
   set window [ containerBorderWidth := 10,
-               containerChild := nb,
+               windowTitle := "nb1",
+               containerChild := whole,
                windowAllowGrow := True ]
   widgetShowAll window
+  
+  -- drugie okno. test.
+  --nb2 <- notebook
+  --window2 <- windowNew
+  --set window [ containerBorderWidth := 10,
+  --             windowTitle := "nb2",
+  --             containerChild := nb2,
+  --             windowAllowGrow := True ]
+  --widgetShowAll window2
+
+
   mainGUI
 
   return ()
