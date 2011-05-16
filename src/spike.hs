@@ -117,6 +117,27 @@ notebook = do
   on nb keyPressEvent $ cb "keyPress"
   return nb
 
+treeview = do
+  let mkTree sub x = Node x sub
+      sub1 = map (mkTree []) [1,2,3]
+      sub2 = map (mkTree []) [4,5,6]
+      sub3 = map (mkTree []) [7,8,9]
+      t = zipWith mkTree [sub1,sub2,sub3] [10,20,30]
+  model <- treeStoreNew (t :: [Tree Int])
+  tv <- treeViewNewWithModel model
+  treeViewSetHeadersVisible tv True
+  col <- treeViewColumnNew
+  treeViewColumnSetTitle col "Int column"
+  renderer <- cellRendererTextNew
+  cellLayoutPackStart col renderer True
+  cellLayoutSetAttributes col renderer model $ \row -> [ cellText := show row ]
+  treeViewAppendColumn tv col
+  -- frame with label
+  tv' <- frameNew
+  containerAdd tv' tv
+  frameSetLabel tv' "TreeView"
+  return tv'
+
 main :: IO ()
 main = do
   -- inicjalizacja
@@ -126,23 +147,12 @@ main = do
   nb <- notebook
 
   -- widget widoku drzewa
-  let mkTree sub x = Node x sub
-      sub1 = map (mkTree []) [1,2,3]
-      sub2 = map (mkTree []) [4,5,6]
-      sub3 = map (mkTree []) [7,8,9]
-      t = zipWith mkTree [sub1,sub2,sub3] [10,20,30]
-  tstore <- treeStoreNew (t :: [Tree Int])
-  tv <- treeViewNewWithModel tstore
-  tv' <- frameNew
-  containerAdd tv' tv
-  frameSetLabel tv' "TreeView"
+  tv <- treeview
   
-
   -- widget na widok drzewa i na notatnik
-
   whole <- vPanedNew
   containerAdd whole nb
-  containerAdd whole tv'
+  containerAdd whole tv
 
   -- pokazujemy wszystko i zapadamy w pętle
   window <- windowNew
