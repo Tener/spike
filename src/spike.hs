@@ -45,15 +45,11 @@ hookupWebView web = do
                       print =<< webFrameGetUri webFr
                       print =<< networkRequestGetUri netReq
                       print =<< webNavigationActionGetReason webNavAct
-                      --print =<< webNavigationActionGetTargetFrame webNavAct
-                      --print (str,t1,t2,t3,t4,t5)
                       print "--------END--------"
                       return False
 
   on web navigationPolicyDecisionRequested $ foo "navigationPolicyDecisionRequested"
-
   on web newWindowPolicyDecisionRequested $ foo "newWindowPolicyDecisionRequested"
-
 
 page = do
   -- webkit widget
@@ -137,9 +133,7 @@ main = do
   containerAdd tv' tv
   frameSetLabel tv' "TreeView"
   
-
   -- widget na widok drzewa i na notatnik
-
   whole <- vPanedNew
   containerAdd whole nb
   containerAdd whole tv'
@@ -162,7 +156,5 @@ main = do
   --             windowAllowGrow := True ]
   --widgetShowAll window2
 
-
   mainGUI
-
   return ()
