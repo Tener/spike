@@ -58,7 +58,6 @@ hookupWebView web newPage = do
   on web downloadRequested $ \ _ -> print "downloadRequested" >> return False
 
 page newPage = do
-  
   -- webkit widget
   web <- webViewNew
   webViewSetTransparent web True
@@ -131,7 +130,10 @@ notebook = do
          case ev of
            (_,"t",[Control]) -> liftIO (print str >> newPage) >> return True
            _ -> return False
+  
   on nb keyPressEvent $ cb "keyPress"
+  on nb keyReleaseEvent $ cb "onKeyRelease"
+  
   return nb
 
 treeview = do
