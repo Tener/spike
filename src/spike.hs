@@ -25,6 +25,9 @@ Links:
 
 -}
 
+data BrowseNode = BrowseNode { widget :: WebView,
+                               identifier :: Int }
+
 instance Show NavigationReason where    
     show WebNavigationReasonLinkClicked	     = "WebNavigationReasonLinkClicked"
     show WebNavigationReasonFormSubmitted    = "WebNavigationReasonFormSubmitted"
