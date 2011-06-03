@@ -7,6 +7,7 @@ import Graphics.UI.Gtk.WebKit.Download
 import Graphics.UI.Gtk.WebKit.WebSettings
 import Graphics.UI.Gtk.WebKit.NetworkRequest
 import Graphics.UI.Gtk.WebKit.WebNavigationAction
+import Graphics.UI.Gtk.WebKit.WebWindowFeatures
 
 import Graphics.UI.Gtk
 
@@ -66,6 +67,21 @@ page = do
       
   hookupWebView web
 
+
+  -- fix features
+  feats <- webViewGetWindowFeatures web
+  let printX x y = print (x,y)
+  printX "webWindowFeaturesFullscreen"         =<< get feats webWindowFeaturesFullscreen
+  printX "webWindowFeaturesHeight"             =<< get feats webWindowFeaturesHeight
+  printX "webWindowFeaturesWidth"              =<< get feats webWindowFeaturesWidth
+  printX "webWindowFeaturesX"                  =<< get feats webWindowFeaturesX
+  printX "webWindowFeaturesY"                  =<< get feats webWindowFeaturesY
+  printX "webWindowFeaturesLocationbarVisible" =<< get feats webWindowFeaturesLocationbarVisible
+  printX "webWindowFeaturesMenubarVisible"     =<< get feats webWindowFeaturesMenubarVisible
+  printX "webWindowFeaturesScrollbarVisible"   =<< get feats webWindowFeaturesScrollbarVisible
+  printX "webWindowFeaturesStatusbarVisible"   =<< get feats webWindowFeaturesStatusbarVisible
+  printX "webWindowFeaturesToolbarVisible"     =<< get feats webWindowFeaturesToolbarVisible
+  
   -- scrolled window to enclose the webkit
   scrollWeb <- scrolledWindowNew Nothing Nothing
   containerAdd scrollWeb web
