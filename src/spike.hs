@@ -88,7 +88,7 @@ page = do
   -- scrolled window to enclose the webkit
   scrollWeb <- scrolledWindowNew Nothing Nothing
   containerAdd scrollWeb web
-
+  
   -- menu
   menu <- hBoxNew False 1
   quit <- buttonNewWithLabel "Quit"
@@ -99,8 +99,7 @@ page = do
   containerAdd menu quit
   containerAdd menu reload
   containerAdd menu goHome
-  widgetSetSizeRequest menu 1024 50
-
+  
   -- fill the page
   page' <- vPanedNew -- vBoxNew False 1
   containerAdd page' menu
@@ -170,23 +169,14 @@ main = do
   containerAdd whole nb
   containerAdd whole tv
 
-  -- pokazujemy wszystko i zapadamy w pętle
+  -- show all, enter loop
   window <- windowNew
   onDestroy window mainQuit
   set window [ containerBorderWidth := 10,
-               windowTitle := "nb1",
+               windowTitle := "window 1",
                containerChild := whole,
                windowAllowGrow := True ]
   widgetShowAll window
-  
-  -- drugie okno. test.
-  --nb2 <- notebook
-  --window2 <- windowNew
-  --set window [ containerBorderWidth := 10,
-  --             windowTitle := "nb2",
-  --             containerChild := nb2,
-  --             windowAllowGrow := True ]
-  --widgetShowAll window2
 
   mainGUI
   return ()
