@@ -156,16 +156,16 @@ treeview = do
 
 main :: IO ()
 main = do
-  -- inicjalizacja
+  -- initialize
   initGUI
 
-  -- notatnik na instancje web view
+  -- notebook for web views
   nb <- notebook
 
-  -- widget widoku drzewa
+  -- tree view widget
   tv <- treeview
   
-  -- widget na widok drzewa i na notatnik
+  -- assemble the page
   whole <- vPanedNew
   containerAdd whole nb
   containerAdd whole tv
