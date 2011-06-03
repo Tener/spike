@@ -44,17 +44,18 @@ hookupWebView web = do
          return True
 
   let foo str webFr netReq webNavAct _webPolDec = do
-                      print "-------BEGIN-------"
-                      print str
-                      print =<< webFrameGetName webFr
-                      print =<< webFrameGetUri webFr
-                      print =<< networkRequestGetUri netReq
-                      print =<< webNavigationActionGetReason webNavAct
-                      print "--------END--------"
+                      t0 <- return str
+                      t1 <- webFrameGetName webFr
+                      t2 <- webFrameGetUri webFr
+                      t3 <- networkRequestGetUri netReq
+                      t4 <- webNavigationActionGetReason webNavAct
+                      print (t0,t1,t2,t3,t4)
                       return False
 
-  on web navigationPolicyDecisionRequested $ foo "navigationPolicyDecisionRequested"
+--  on web navigationPolicyDecisionRequested $ foo "navigationPolicyDecisionRequested"
   on web newWindowPolicyDecisionRequested $ foo "newWindowPolicyDecisionRequested"
+  on web createWebView $ \ _ -> print "createWebView" >> fmap snd newPage
+  on web downloadRequested $ \ _ -> print "downloadRequested" >> return False
 
 page = do
   -- webkit widget
@@ -117,15 +118,15 @@ notebook = do
          writeIORef cnt (cnt' + 1)
          ix <- notebookAppendPage nb p ("Page: " ++ show cnt')  
          widgetShowAll nb
-         print ix
+         print ("newPage",ix)
   newPage
-
+  
   let cb str = do
          mods <- eventModifier
          key <- eventKeyVal
          name <- eventKeyName
          let ev = (key,name,mods)
-         liftIO $ print ev
+         liftIO $ print (str,ev)
          case ev of
            (_,"t",[Control]) -> liftIO (print str >> newPage) >> return True
            _ -> return False
