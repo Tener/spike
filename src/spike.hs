@@ -52,7 +52,6 @@ hookupWebView web newPage = do
                       print (t0,t1,t2,t3,t4)
                       return False
 
---  on web navigationPolicyDecisionRequested $ foo "navigationPolicyDecisionRequested"
   on web newWindowPolicyDecisionRequested $ foo "newWindowPolicyDecisionRequested"
   on web createWebView $ \ _ -> print "createWebView" >> fmap snd newPage
   on web downloadRequested $ \ _ -> print "downloadRequested" >> return False
@@ -71,7 +70,7 @@ page newPage = do
       
   hookupWebView web newPage
 
-  -- fix features
+  -- debug features
   feats <- webViewGetWindowFeatures web
   let printX x y = print (x,y)
   printX "webWindowFeaturesFullscreen"         =<< get feats webWindowFeaturesFullscreen
@@ -101,7 +100,7 @@ page newPage = do
   containerAdd menu goHome
   
   -- fill the page
-  page' <- vPanedNew -- vBoxNew False 1
+  page' <- vPanedNew
   containerAdd page' menu
   containerAdd page' scrollWeb
   
