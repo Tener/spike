@@ -1,3 +1,4 @@
+{-# LANGUAGE PackageImports #-}
 module Main where
 
 import Graphics.UI.Gtk.WebKit.WebFrame 
@@ -11,7 +12,7 @@ import Graphics.UI.Gtk
 
 import Data.IORef
 
-import Control.Monad.Trans
+import "mtl" Control.Monad.Trans
 
 import Data.Tree as Tree
 
