@@ -37,7 +37,7 @@ instance Show NavigationReason where
     show WebNavigationReasonOther	     = "WebNavigationReasonOther"
 
 -- | install listeners for various signals
-hookupWebView web = do
+hookupWebView web newPage = do
   on web downloadRequested $ \ down -> do
          uri <- downloadGetUri down
          print ("Download uri",uri)
@@ -57,7 +57,8 @@ hookupWebView web = do
   on web createWebView $ \ _ -> print "createWebView" >> fmap snd newPage
   on web downloadRequested $ \ _ -> print "downloadRequested" >> return False
 
-page = do
+page newPage = do
+  
   -- webkit widget
   web <- webViewNew
   webViewSetTransparent web True
@@ -69,8 +70,7 @@ page = do
   settings <- webViewGetWebSettings web
   set settings [webSettingsEnablePlugins := False]
       
-  hookupWebView web
-
+  hookupWebView web newPage
 
   -- fix features
   feats <- webViewGetWindowFeatures web
@@ -107,18 +107,19 @@ page = do
   containerAdd page' scrollWeb
   
   widgetShowAll page'
-  return page'
+  return (page',web)
 
 notebook = do
   nb <- notebookNew
   cnt <- newIORef (1 :: Int)
   let newPage = do
-         p <- page
+         (p,w) <- page newPage
          cnt' <- readIORef cnt
          writeIORef cnt (cnt' + 1)
          ix <- notebookAppendPage nb p ("Page: " ++ show cnt')  
          widgetShowAll nb
          print ("newPage",ix)
+         return (p,w)
   newPage
   
   let cb str = do
