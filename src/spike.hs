@@ -37,6 +37,7 @@ instance Show NavigationReason where
     show WebNavigationReasonOther	     = "WebNavigationReasonOther"
 
 -- | install listeners for various signals
+hookupWebView :: WebViewClass object => object -> IO (a, WebView) -> IO ()
 hookupWebView web newPage = do
   on web downloadRequested $ \ down -> do
          uri <- downloadGetUri down
@@ -53,9 +54,13 @@ hookupWebView web newPage = do
                       return False
 
   on web newWindowPolicyDecisionRequested $ foo "newWindowPolicyDecisionRequested"
-  on web createWebView $ \ _ -> print "createWebView" >> fmap snd newPage
+  on web createWebView $ \ _ -> print "XXX: hookupWebView: createWebView" >> fmap snd newPage
   on web downloadRequested $ \ _ -> print "downloadRequested" >> return False
 
+  return ()
+
+
+page :: IO (a, WebView) -> IO (VPaned, WebView)
 page newPage = do
   -- webkit widget
   web <- webViewNew
@@ -73,16 +78,16 @@ page newPage = do
   -- debug features
   feats <- webViewGetWindowFeatures web
   let printX x y = print (x,y)
-  printX "webWindowFeaturesFullscreen"         =<< get feats webWindowFeaturesFullscreen
-  printX "webWindowFeaturesHeight"             =<< get feats webWindowFeaturesHeight
-  printX "webWindowFeaturesWidth"              =<< get feats webWindowFeaturesWidth
-  printX "webWindowFeaturesX"                  =<< get feats webWindowFeaturesX
-  printX "webWindowFeaturesY"                  =<< get feats webWindowFeaturesY
-  printX "webWindowFeaturesLocationbarVisible" =<< get feats webWindowFeaturesLocationbarVisible
-  printX "webWindowFeaturesMenubarVisible"     =<< get feats webWindowFeaturesMenubarVisible
-  printX "webWindowFeaturesScrollbarVisible"   =<< get feats webWindowFeaturesScrollbarVisible
-  printX "webWindowFeaturesStatusbarVisible"   =<< get feats webWindowFeaturesStatusbarVisible
-  printX "webWindowFeaturesToolbarVisible"     =<< get feats webWindowFeaturesToolbarVisible
+  printX "new page: webWindowFeaturesFullscreen"         =<< get feats webWindowFeaturesFullscreen
+  printX "new page: webWindowFeaturesHeight"             =<< get feats webWindowFeaturesHeight
+  printX "new page: webWindowFeaturesWidth"              =<< get feats webWindowFeaturesWidth
+  printX "new page: webWindowFeaturesX"                  =<< get feats webWindowFeaturesX
+  printX "new page: webWindowFeaturesY"                  =<< get feats webWindowFeaturesY
+  printX "new page: webWindowFeaturesLocationbarVisible" =<< get feats webWindowFeaturesLocationbarVisible
+  printX "new page: webWindowFeaturesMenubarVisible"     =<< get feats webWindowFeaturesMenubarVisible
+  printX "new page: webWindowFeaturesScrollbarVisible"   =<< get feats webWindowFeaturesScrollbarVisible
+  printX "new page: webWindowFeaturesStatusbarVisible"   =<< get feats webWindowFeaturesStatusbarVisible
+  printX "new page: webWindowFeaturesToolbarVisible"     =<< get feats webWindowFeaturesToolbarVisible
   
   -- scrolled window to enclose the webkit
   scrollWeb <- scrolledWindowNew Nothing Nothing
@@ -107,6 +112,7 @@ page newPage = do
   widgetShowAll page'
   return (page',web)
 
+notebook :: IO Notebook
 notebook = do
   nb <- notebookNew
   cnt <- newIORef (1 :: Int)
@@ -135,6 +141,7 @@ notebook = do
   
   return nb
 
+treeview :: IO Frame
 treeview = do
   let mkTree sub x = Node x sub
       sub1 = map (mkTree []) [1,2,3]
@@ -154,6 +161,10 @@ treeview = do
   tv' <- frameNew
   containerAdd tv' tv
   frameSetLabel tv' "TreeView"
+  
+  widgetSetSizeRequest tv' (-1) 100
+  widgetSetSizeRequest tv (-1) 100
+
   return tv'
 
 main :: IO ()
@@ -169,8 +180,13 @@ main = do
   
   -- assemble the page
   whole <- vPanedNew
-  containerAdd whole nb
   containerAdd whole tv
+  containerAdd whole nb
+
+  print ("divider:")
+  print =<< panedGetPosition whole
+  panedSetPosition whole 100
+  
 
   -- show all, enter loop
   window <- windowNew
