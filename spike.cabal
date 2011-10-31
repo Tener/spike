@@ -11,6 +11,12 @@ Cabal-version:       >=1.2
 
 Executable spike
   Main-is:           spike.hs
-  Hs-source-dirs:    src  
+  Hs-source-dirs:    src
   Build-depends:     webkit == 0.12.*, containers, gtk, base, mtl > 2
-  Ghc-options:       -threaded
+  Ghc-options:       -threaded -rtsopts
+
+Executable spike2
+  Main-is:           spike2.hs
+  Hs-source-dirs:    src
+  Build-depends:     webkit == 0.12.*, containers, gtk, base, stm, mtl > 2
+  Ghc-options:       -threaded -rtsopts
