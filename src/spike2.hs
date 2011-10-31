@@ -1,13 +1,15 @@
 {-# LANGUAGE PackageImports, FlexibleInstances #-}
 module Main where
 
-import Graphics.UI.Gtk.WebKit.WebFrame 
+import Graphics.UI.Gtk.WebKit.WebFrame
 import Graphics.UI.Gtk.WebKit.WebView
 import Graphics.UI.Gtk.WebKit.Download
 import Graphics.UI.Gtk.WebKit.WebSettings
 import Graphics.UI.Gtk.WebKit.NetworkRequest
 import Graphics.UI.Gtk.WebKit.WebNavigationAction
 -- import Graphics.UI.Gtk.WebKit.WebWindowFeatures
+
+import System.IO.Unsafe
 
 import Graphics.UI.Gtk
 
@@ -22,12 +24,15 @@ import qualified Data.Traversable as T
 
 import Data.Tree as Tree
 
-data History = Hist { hiNow :: String, hiPrev :: [String], hiNext :: [String] }
+data History = Hist { hiNow :: String, hiPrev :: [String], hiNext :: [String] } deriving Show
 
 data Page = Page { pgWeb :: WebView, pgWidget :: Widget, pgHistory :: TVar History }
 
-instance Eq Page where
+instance Show Page where
+    show pg = "Page { pgWeb=?, pgWidget=?, pgHistory=" ++ show (unsafeDupablePerformIO (readTVarIO (pgHistory pg))) ++ "}"
 
+instance Eq Page where
+    p1 == p2 = pgWidget p1 == pgWidget p2
 
 type BrowseTree = Forest Page
 type BrowseTreeState = TVar BrowseTree
@@ -37,13 +42,13 @@ type BrowseTreeState = TVar BrowseTree
 
 -- wrapper newtype to avoid orphan instances
 newtype MyShow a = MyShow a
-instance Show (MyShow NavigationReason) where	
-    show (MyShow WebNavigationReasonLinkClicked	   )  = "WebNavigationReasonLinkClicked"
+instance Show (MyShow NavigationReason) where
+    show (MyShow WebNavigationReasonLinkClicked    )  = "WebNavigationReasonLinkClicked"
     show (MyShow WebNavigationReasonFormSubmitted  )  = "WebNavigationReasonFormSubmitted"
-    show (MyShow WebNavigationReasonBackForward	   )  = "WebNavigationReasonBackForward"
-    show (MyShow WebNavigationReasonReload	   )  = "WebNavigationReasonReload"
+    show (MyShow WebNavigationReasonBackForward    )  = "WebNavigationReasonBackForward"
+    show (MyShow WebNavigationReasonReload         )  = "WebNavigationReasonReload"
     show (MyShow WebNavigationReasonFormResubmitted)  = "WebNavigationReasonFormResubmitted"
-    show (MyShow WebNavigationReasonOther	   )  = "WebNavigationReasonOther"
+    show (MyShow WebNavigationReasonOther          )  = "WebNavigationReasonOther"
 
 
 isWidgetPage :: Widget -> Page -> IO Bool
@@ -81,7 +86,7 @@ hookupWebView web createSubPage = do
 
   on web newWindowPolicyDecisionRequested $ foo "newWindowPolicyDecisionRequested"
 -- on web navigationPolicyDecisionRequested ...
-  on web createWebView $ \ _ -> print "createWebView" >> createSubPage
+  on web createWebView $ \ _webframe -> print "createWebView" >> createSubPage
   -- on web downloadRequested $ \ _ -> print "downloadRequested" >> return False
 
   -- JavaScript stuff: TODO
@@ -96,8 +101,8 @@ hookupWebView web createSubPage = do
 
   return ()
 
-newWeb :: BrowseTreeState -> String -> IO (Widget, WebView)
-newWeb btreeSt url = do
+newWeb :: BrowseTreeState -> IO () -> String -> IO (Widget, WebView)
+newWeb btreeSt refreshLayout url = do
   -- webkit widget
   web <- webViewNew
   webViewSetTransparent web True
@@ -117,13 +122,13 @@ newWeb btreeSt url = do
   menu <- hBoxNew False 1
   quit <- buttonNewWithLabel "Quit"
   reload <- buttonNewWithLabel "Reload"
-  on reload buttonActivated $ webViewReload web 
+  on reload buttonActivated $ webViewReload web
   goHome <- buttonNewWithLabel "Home"
   on goHome buttonActivated $ loadHome
   containerAdd menu quit
   containerAdd menu reload
   containerAdd menu goHome
-  
+
   -- fill the page
   page <- vPanedNew
   containerAdd page menu
@@ -134,16 +139,20 @@ newWeb btreeSt url = do
   let widget = toWidget page
       ww = (widget,web)
       newChildPage = do
+        print "[newChildPage called]"
         btree <- readTVarIO btreeSt
+        print btree
         case findPageWidget btree widget of
           Just p -> do
-            p' <- newPage ww "about:blank" -- TODO: win the battle over the power to navigate the web view.
+            ww' <- newWeb btreeSt refreshLayout "about:blank"
+            p' <- newPage ww' "about:blank" -- TODO: win the battle over the power to navigate the web view.
             let btree' = addChild btree p p'
             atomically $ writeTVar btreeSt btree'
+            refreshLayout
             return (pgWeb p')
           Nothing -> do
             error "findPageWidget returned Nothing, can't provide a new window"
-        
+
   hookupWebView web newChildPage
 
   return ww
@@ -159,7 +168,7 @@ historyMoveForward page = do
         let h' = Hist x (hiNow hist : hiPrev hist) xs
         writeTVar (pgHistory page) h'
         return (Just x)
- 
+
   case url of
     Just url' -> webViewLoadUri (pgWeb page) url'
     Nothing -> return ()
@@ -174,7 +183,7 @@ historyMoveBackward page = do
         let h' = Hist x xs (hiNow hist : hiNext hist)
         writeTVar (pgHistory page) h'
         return (Just x)
- 
+
   case url of
     Just url' -> webViewLoadUri (pgWeb page) url'
     Nothing -> return ()
@@ -186,28 +195,37 @@ navigateToPage page url = do
     hist <- readTVar (pgHistory page)
     let h' = Hist url (hiNow hist : hiPrev hist) []
     writeTVar (pgHistory page) h'
- 
+
   webViewLoadUri (pgWeb page) url
 
 -- operations on tree
 
--- new browse tree. contains single page with home page.
--- newBrowseTree :: IO BrowseTreeState
-newBrowseTree :: IO (BrowseTreeState, Page)
-newBrowseTree = do
-  let homepage = "https://google.com"
-  btvar <- newTVarIO []
-  ww@(_widget,_web) <- newWeb btvar homepage 
-  tp <- newLeafURL ww homepage
-  -- note: a minor race condition. 
-  -- consider a case when homepage contains javascript that opens a new (sub)page. 
-  -- this can be fired before the following lines, 
-  -- in which case this new page get's lost, 
-  -- because findPageWidget will return Nothing.
-  -- this will in turn (currently) cause application crash, due to unhandled 'error'.
+-- -- new browse tree. contains single page with home page.
+-- -- newBrowseTree :: IO BrowseTreeState
+-- newBrowseTree :: IO (BrowseTreeState, Page)
+-- newBrowseTree = do
+--   let homepage = "https://google.com"
+--   btvar <- newTVarIO []
+--   ww@(_widget,_web) <- newWeb btvar homepage
+--   tp <- newLeafURL ww homepage
+--   -- note: a minor race condition.
+--   -- consider a case when homepage contains javascript that opens a new (sub)page.
+--   -- this can be fired before the following lines,
+--   -- in which case this new page get's lost,
+--   -- because findPageWidget will return Nothing.
+--   -- this will in turn (currently) cause application crash, due to unhandled 'error'.
+--
+--   atomically $ writeTVar btvar [tp]
+--   return (btvar, rootLabel tp)
 
-  atomically $ writeTVar btvar [tp]
-  return (btvar, rootLabel tp)
+newTopPage :: BrowseTreeState -> IO () -> String -> IO Page
+newTopPage btvar refreshLayout url = do
+  ww <- newWeb btvar refreshLayout url
+  tp <- newLeafURL ww url
+  atomically $ do
+    bt <- readTVar btvar
+    writeTVar btvar (bt ++ [tp])
+  return (rootLabel tp)
 
 newLeafURL :: (Widget, WebView) -> String -> IO (Tree Page)
 newLeafURL ww url = do
@@ -223,7 +241,7 @@ newLeaf :: Page -> Tree Page
 newLeaf page = Node page []
 
 addChild :: BrowseTree -> Page -> Page -> BrowseTree
-addChild btree parent child = let 
+addChild btree parent child = let
     aux (Node page sub) | isSamePage page parent = Node page (sub ++ [newLeaf child])
                         | otherwise              = Node page (map aux sub)
     in map aux btree
@@ -239,23 +257,28 @@ findPageWidget btree w = let fun p = pgWidget p == w
                              [] -> Nothing
                              (x:_) -> Just x
 
-getPageSurrounds :: BrowseTree -> Page -> ([Page],[Page],[Page])
+-- getPageSurrounds :: BrowseTree -> Page -> ([Page],[Page],[Page])
+getPageSurrounds :: Eq a => [Tree a] -> a -> ([a], [a], [a])
 getPageSurrounds btree p | not (any (F.elem p) btree) = ([],[p],[])
-                         | otherwise = 
+                         | otherwise =
                              let parent = getPageParent btree p
                                  parents = case parent of
                                              Nothing -> []
-                                             Just x -> [rootLabel x]
-                                 siblings = case parent of
-                                              Nothing -> map rootLabel btree
-                                              Just x -> map rootLabel (subForest x)
+                                             Just x -> map rootLabel (getPageSiblings btree (rootLabel x))
+                                 siblings = map rootLabel (getPageSiblings btree p)
                                  children = map rootLabel (getPageChildren btree p)
                              in (parents,siblings,children)
+-- returns node's siblings
+getPageSiblings :: Eq b => [Tree b] -> b -> [Tree b]
+getPageSiblings btree p = case getPageParent btree p of
+                            Nothing -> btree
+                            Just x -> subForest x
 
-getPageChildren :: BrowseTree -> Page -> BrowseTree
+--getPageChildren :: BrowseTree -> Page -> BrowseTree
+getPageChildren :: Eq b => [Tree b] -> b -> Forest b
 getPageChildren btree p = case filter ((==p) . rootLabel) (concatMap subtrees btree) of
                             [] -> error "Element (page) not found in Forest"
-                            (Node _ sub:_) -> sub 
+                            (Node _ sub:_) -> sub
 
 -- getPageParent :: Eq a => [Tree a] -> Tree a -> Forest a
 getPageParent :: Eq b => [Tree b] -> b -> Maybe (Tree b)
@@ -264,10 +287,10 @@ getPageParent btree p = case (filter (any ((==p) . rootLabel) . subForest) (subt
                             (x:_xs) -> Just x
 
 subtrees :: Tree t -> [Tree t]
-subtrees t@(Node _ sub) = t : subtrees' sub 
+subtrees t@(Node _ sub) = t : subtrees' sub
 
 subtrees' :: [Tree t] -> [Tree t]
-subtrees' = concatMap subtrees 
+subtrees' = concatMap subtrees
 
 -- notebook synchronization
 
@@ -291,7 +314,7 @@ viewPagesNotebook pages nb = do
           Nothing -> getPageTitle p >>= notebookAppendPage nb w >> return ()
           Just _ -> return ()
 
-  mapM_ addMissing pages 
+  mapM_ addMissing pages
   -- reorder everything to get right order
   let fixOrder (i,p) = do
         notebookReorderChild nb (pgWidget p) i
@@ -318,7 +341,7 @@ listPagesBox focusOnPage pages box = do
            labelSetWidthChars l 20
            labelSetSingleLineMode l True
            boxPackStart box l PackNatural 1
-                        
+
            on l focus $ \ direction -> do
              print ("SIGNAL: on focus",direction, title)
              focusOnPage p
@@ -330,40 +353,69 @@ main :: IO ()
 main = do
  initGUI
 
- parentsBox <- hBoxNew False 1   :: IO HBox 
- siblingsNotebook <- notebookNew :: IO Notebook 
- centralBox <- frameNew          :: IO Frame
- childrenBox <- hBoxNew False 1  :: IO HBox 
+ parentsBox <- hBoxNew False 1   :: IO HBox
+ siblingsNotebook <- notebookNew :: IO Notebook
+ -- centralBox <- frameNew          :: IO Frame
+ childrenBox <- hBoxNew False 1  :: IO HBox
 
  inside <- vBoxNew False 1
- containerAdd inside parentsBox 
- containerAdd inside siblingsNotebook 
- containerAdd inside centralBox
- containerAdd inside childrenBox 
+ containerAdd inside parentsBox
+ containerAdd inside siblingsNotebook
+ -- containerAdd inside centralBox
+ containerAdd inside childrenBox
 
- (btreeVar,topPage) <- newBrowseTree
+ currentPage <- newTVarIO (error "current page is undefined for now...")
+ btreeVar <- newTVarIO []
+
+ let viewPage :: Page -> IO ()
+     viewPage page = do
+       print "viewPage"
+       btree <- readTVarIO btreeVar
+       let (parents,siblings,children) = getPageSurrounds btree page
+       print "viewPage:1"
+       listPagesBox viewPage parents parentsBox    -- update parents
+       print "viewPage:2"
+       viewPagesNotebook siblings siblingsNotebook -- update siblings
+       -- print "viewPage:3"
+       -- showPage page centralBox                    -- show webview inside central box
+       print "viewPage:4"
+       listPagesBox viewPage children childrenBox  -- update children
+
+       selectPageNotebook page siblingsNotebook    -- open this specific page in notebook
+       print (length btree)
+       mapM_ print (levels $ head btree)
+       return ()
+
+     refreshLayout = do
+       print "refreshLayout"
+       current <- readTVarIO currentPage
+       viewPage current
+
+     -- showPage p box = do
+     --     containerForeach box (containerRemove box)
+     --     containerAdd box (pgWidget p)
+
+     spawnHomepage = do
+         let homepage = "https://google.com"
+         page <- newTopPage btreeVar refreshLayout homepage
+         atomically $ writeTVar currentPage page
+--         ww <- newWeb btreeVar homepage
+--         tp <- newLeafURL ww homepage
+--         atomically $ do
+--                       writeTVar btreeVar [tp]
+--                       writeTVar currentPage (rootLabel tp)
+         return ()
+
+ spawnHomepage
+ newTopPage btreeVar refreshLayout "http://wp.pl"
+
+ -- (btreeVar,topPage) <- newBrowseTree
 
 -- let parentsBox = undefined :: HBox
 --     siblingsNotebook = undefined :: Notebook
 --     centralBox = undefined :: Frame
 --     childrenBox = undefined :: HBox
 
- let viewPage :: Page -> IO ()
-     viewPage page = do
-       btree <- readTVarIO btreeVar
-       let (parents,siblings,children) = getPageSurrounds btree page
-       listPagesBox viewPage parents parentsBox    -- update parents
-       viewPagesNotebook siblings siblingsNotebook -- update siblings
-       showPage page centralBox                    -- show webview inside central box
-       listPagesBox viewPage children childrenBox  -- update children
-
-       selectPageNotebook page siblingsNotebook    -- open this specific page in notebook
-     
-     showPage p box = do
-         containerForeach box (containerRemove box)
-         containerAdd box (pgWidget p)
-
- viewPage topPage
 
  -- show all, enter loop
  window <- windowNew
@@ -374,6 +426,8 @@ main = do
               windowAllowGrow := True ]
  widgetShowAll window
 
+ -- viewPage topPage
+ refreshLayout
+
  mainGUI
  return ()
-
