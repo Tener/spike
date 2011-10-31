@@ -14,6 +14,10 @@ import Graphics.UI.Gtk
 -- import Control.Concurrent
 import Control.Concurrent.STM
 
+import qualified Data.Foldable as F
+import qualified Data.Traversable as T
+
+
 -- import "mtl" Control.Monad.Trans
 
 import Data.Tree as Tree
@@ -21,6 +25,9 @@ import Data.Tree as Tree
 data History = Hist { hiNow :: String, hiPrev :: [String], hiNext :: [String] }
 
 data Page = Page { pgWeb :: WebView, pgWidget :: Widget, pgHistory :: TVar History }
+
+instance Eq Page where
+
 
 type BrowseTree = Forest Page
 type BrowseTreeState = TVar BrowseTree
@@ -221,6 +228,8 @@ addChild btree parent child = let
                         | otherwise              = Node page (map aux sub)
     in map aux btree
 
+-- query functions
+
 findPageWidget :: BrowseTree -> Widget -> Maybe Page
 findPageWidget btree w = let fun p = pgWidget p == w
                              flat = concatMap flatten btree
@@ -229,6 +238,36 @@ findPageWidget btree w = let fun p = pgWidget p == w
                            case filt of
                              [] -> Nothing
                              (x:_) -> Just x
+
+getPageSurrounds :: BrowseTree -> Page -> ([Page],[Page],[Page])
+getPageSurrounds btree p | not (any (F.elem p) btree) = ([],[p],[])
+                         | otherwise = 
+                             let parent = getPageParent btree p
+                                 parents = case parent of
+                                             Nothing -> []
+                                             Just x -> [rootLabel x]
+                                 siblings = case parent of
+                                              Nothing -> map rootLabel btree
+                                              Just x -> map rootLabel (subForest x)
+                                 children = map rootLabel (getPageChildren btree p)
+                             in (parents,siblings,children)
+
+getPageChildren :: BrowseTree -> Page -> BrowseTree
+getPageChildren btree p = case filter ((==p) . rootLabel) (concatMap subtrees btree) of
+                            [] -> error "Element (page) not found in Forest"
+                            (Node _ sub:_) -> sub 
+
+-- getPageParent :: Eq a => [Tree a] -> Tree a -> Forest a
+getPageParent :: Eq b => [Tree b] -> b -> Maybe (Tree b)
+getPageParent btree p = case (filter (any ((==p) . rootLabel) . subForest) (subtrees' btree)) of
+                            [] -> Nothing
+                            (x:_xs) -> Just x
+
+subtrees :: Tree t -> [Tree t]
+subtrees t@(Node _ sub) = t : subtrees' sub 
+
+subtrees' :: [Tree t] -> [Tree t]
+subtrees' = concatMap subtrees 
 
 -- notebook synchronization
 
@@ -259,6 +298,13 @@ viewPagesNotebook pages nb = do
 
   mapM_ fixOrder (zip [0..] pages)
 
+-- | open specified page in notebook
+selectPageNotebook :: Page -> Notebook -> IO ()
+selectPageNotebook pg nb = do
+  page <- notebookPageNum nb (pgWidget pg)
+  case page of
+    Nothing -> print "selectPageNotebook: Warning: no such page in notebook" -- TODO: better logging
+    Just i -> notebookSetCurrentPage nb i
 
 -- | list pages in a box
 -- listPagesBox :: (BoxClass box) => [Page] -> box -> IO ()
@@ -284,10 +330,10 @@ main :: IO ()
 main = do
  initGUI
 
- parentsBox <- hBoxNew False 1
- siblingsNotebook <- notebookNew
- centralBox <- frameNew
- childrenBox <- hBoxNew False 1
+ parentsBox <- hBoxNew False 1   :: IO HBox 
+ siblingsNotebook <- notebookNew :: IO Notebook 
+ centralBox <- frameNew          :: IO Frame
+ childrenBox <- hBoxNew False 1  :: IO HBox 
 
  inside <- vBoxNew False 1
  containerAdd inside parentsBox 
@@ -295,7 +341,7 @@ main = do
  containerAdd inside centralBox
  containerAdd inside childrenBox 
 
- (_btree,topPage) <- newBrowseTree
+ (btreeVar,topPage) <- newBrowseTree
 
 -- let parentsBox = undefined :: HBox
 --     siblingsNotebook = undefined :: Notebook
@@ -304,10 +350,14 @@ main = do
 
  let viewPage :: Page -> IO ()
      viewPage page = do
-       listPagesBox viewPage [] parentsBox   -- update parents
-       viewPagesNotebook [] siblingsNotebook -- update siblings
-       showPage page centralBox              -- show webview inside central box
-       listPagesBox viewPage [] childrenBox  -- update children
+       btree <- readTVarIO btreeVar
+       let (parents,siblings,children) = getPageSurrounds btree page
+       listPagesBox viewPage parents parentsBox    -- update parents
+       viewPagesNotebook siblings siblingsNotebook -- update siblings
+       showPage page centralBox                    -- show webview inside central box
+       listPagesBox viewPage children childrenBox  -- update children
+
+       selectPageNotebook page siblingsNotebook    -- open this specific page in notebook
      
      showPage p box = do
          containerForeach box (containerRemove box)
@@ -319,7 +369,7 @@ main = do
  window <- windowNew
  onDestroy window mainQuit
  set window [ containerBorderWidth := 10,
-              windowTitle := "window 1",
+              windowTitle := "Spike browser",
               containerChild := inside,
               windowAllowGrow := True ]
  widgetShowAll window
