@@ -1,4 +1,4 @@
-{-# LANGUAGE PackageImports, FlexibleInstances #-}
+{-# LANGUAGE PackageImports, FlexibleInstances, DoRec #-}
 module Main where
 
 import Graphics.UI.Gtk.WebKit.WebFrame
@@ -15,10 +15,12 @@ import Graphics.UI.Gtk
 
 import Control.Monad
 import Control.Concurrent.STM
+import Control.Concurrent
 
 import qualified Data.Foldable as F
 import qualified Data.Traversable as T
 
+import Utils
 
 -- import "mtl" Control.Monad.Trans
 
@@ -69,6 +71,7 @@ debugBTree :: [Tree Page] -> IO ()
 debugBTree btree = do
   btree' <- mapM (T.mapM (\p -> fmap show $ getPageTitle p)) btree
   putStrLn (drawForest btree')
+  
 
 -- operations on single page
 -- | install listeners for various signals
@@ -115,7 +118,7 @@ hookupWebView web createSubPage = do
   hoveredLink <- newTVarIO Nothing
 
   on web hoveringOverLink $ \ title uri -> do
-    print ("[hoveringOverLink]: ",title,uri)
+    -- print ("[hoveringOverLink]: ",title,uri)
     atomically $ writeTVar hoveredLink uri
 
   -- navigation
@@ -471,27 +474,32 @@ main = do
  currentPage <- newTVarIO (error "current page is undefined for now...")
  btreeVar <- newTVarIO []
 
+ refreshLayoutReenter <- newTVarIO False
  let viewPage :: Page -> IO ()
      viewPage page = do
+       print "CALL: viewPage"
        atomically $ writeTVar currentPage page
+--       btree <- readTVarIO btreeVar
+--        let (_parents,siblings,_children) = getPageSurrounds btree page
+--       refreshLayout
+           -- open this specific page in notebook
+
+     refreshLayout = dontReenter refreshLayoutReenter $ do
+       print "CALL: refreshLayout"
+
        btree <- readTVarIO btreeVar
+       page <- readTVarIO currentPage
        let (parents,siblings,children) = getPageSurrounds btree page
+
+       viewPagesNotebook siblings siblingsNotebook -- update siblings
+       selectPageNotebook page siblingsNotebook
+
        case parents of
          [] -> noEntriesInBox parentsBox
          parents' -> listPagesBox viewPage parents' parentsBox    -- update parents
-       viewPagesNotebook siblings siblingsNotebook -- update siblings
        case children of
          [] -> noEntriesInBox childrenBox
          children' -> listPagesBox viewPage children' childrenBox  -- update children
-
-       selectPageNotebook page siblingsNotebook    -- open this specific page in notebook
-       -- print btree
-       return ()
-
-     refreshLayout = do
-       print "refreshLayout"
-       current <- readTVarIO currentPage
-       viewPage current
 
      -- showPage p box = do
      --     containerForeach box (containerRemove box)
@@ -501,27 +509,45 @@ main = do
          let homepage = "https://google.com"
          page <- newTopPage btreeVar refreshLayout homepage
          atomically $ writeTVar currentPage page
+         viewPage page
 --         ww <- newWeb btreeVar homepage
 --         tp <- newLeafURL ww homepage
 --         atomically $ do
 --                       writeTVar btreeVar [tp]
 --                       writeTVar currentPage (rootLabel tp)
          return ()
-
- siblingsNotebookPage <- newTVarIO 0
- on siblingsNotebook switchPage $ \ i -> do
-     j <- readTVarIO siblingsNotebookPage
-     print $ "SIGNAL: siblingsNotebook switchPage " ++ show (j,i)
-     atomically $ writeTVar siblingsNotebookPage j
+       
+ var <- newTVarIO 0
+ on siblingsNotebook switchPage $ \ i -> (callDepthCount var $ \depth -> dontReenter refreshLayoutReenter $ do
+     print $ "SIGNAL: siblingsNotebook switchPage [d=" ++ show depth ++ "] :" ++ show i
+ 
      Just w <- notebookGetNthPage siblingsNotebook i
      btree <- readTVarIO btreeVar
      case findPageWidget btree w of
-       Nothing -> return () -- some log here?
-       Just pg -> atomically $ writeTVar currentPage pg
---     when (i /= j) refreshLayout
+       Nothing -> print "SIGNAL: siblingsNotebook switchPage: no page?"
+       Just pg -> (atomically $ writeTVar currentPage pg)
+     refreshLayout)
+     
+                                                                                                            
+ let watchdog page = do
+         print ("WATCHDOG: currentPage=",page)
+         page' <- waitTVarChangeFrom page currentPage
+         print ("WATCHDOG: currentPage changed",page,page')
+         postGUIAsync (refreshLayout)
+         watchdog page'
+ forkIO (do
+          threadDelay (10^6) -- TODO: proper fix
+          watchdog =<< readTVarIO currentPage)
+
+-- forkIO $ forever $ do
+--   page <- waitTVarChange currentPage
+--   print "currentPage changed"
+--   postGUIAsync (refreshLayout) -- viewPage page)
+--   threadDelay (10^5)
+
 
  spawnHomepage
- newTopPage btreeVar refreshLayout "http://wp.pl"
+ newTopPage btreeVar refreshLayout "http://news.google.com"
 
  -- (btreeVar,topPage) <- newBrowseTree
 
