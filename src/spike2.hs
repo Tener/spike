@@ -86,7 +86,16 @@ hookupWebView web createSubPage = do
 
   on web newWindowPolicyDecisionRequested $ foo "newWindowPolicyDecisionRequested"
 -- on web navigationPolicyDecisionRequested ...
-  on web createWebView $ \ _webframe -> print "createWebView" >> createSubPage
+
+  on web createWebView $ \ frame -> do
+    print "createWebView"
+    newWebView <- createSubPage
+    newUri <- webFrameGetUri frame
+    case newUri of
+      Just uri -> webViewLoadUri newWebView uri
+      Nothing  -> return ()
+    return newWebView
+
   -- on web downloadRequested $ \ _ -> print "downloadRequested" >> return False
 
   -- JavaScript stuff: TODO
@@ -109,6 +118,7 @@ newWeb btreeSt refreshLayout url = do
   let loadHome = webViewLoadUri web url
   loadHome
   webViewSetMaintainsBackForwardList web False -- TODO: or maybe True?
+  on web titleChanged $ \ _ _ -> refreshLayout
 
   -- plugins are causing trouble. disable them.
   settings <- webViewGetWebSettings web
@@ -125,9 +135,9 @@ newWeb btreeSt refreshLayout url = do
   on reload buttonActivated $ webViewReload web
   goHome <- buttonNewWithLabel "Home"
   on goHome buttonActivated $ loadHome
-  containerAdd menu quit
-  containerAdd menu reload
-  containerAdd menu goHome
+  boxPackEnd menu quit PackNatural 1
+  boxPackStart menu reload PackNatural 1
+  boxPackStart menu goHome PackNatural 1
 
   -- fill the page
   page <- vPanedNew
@@ -295,8 +305,8 @@ subtrees' = concatMap subtrees
 -- notebook synchronization
 
 -- | view selected pages in notebook. clears existing pages first.
-viewPagesNotebook :: [Page] -> Notebook -> IO ()
-viewPagesNotebook pages nb = do
+viewPagesNotebook' :: [Page] -> Notebook -> IO ()
+viewPagesNotebook' pages nb = do
   -- remove pages we don't need
   current <- (zip [0..]) `fmap` containerGetChildren nb
   let aux _ [] = return ()
@@ -321,6 +331,15 @@ viewPagesNotebook pages nb = do
 
   mapM_ fixOrder (zip [0..] pages)
 
+  widgetShowAll nb
+
+viewPagesNotebook :: [Page] -> Notebook -> IO ()
+viewPagesNotebook pages nb = do
+  containerForeach nb (containerRemove nb)
+  mapM_ (\p -> getPageTitle p >>= notebookAppendPage nb (pgWidget p)) pages
+  widgetShowAll nb
+
+
 -- | open specified page in notebook
 selectPageNotebook :: Page -> Notebook -> IO ()
 selectPageNotebook pg nb = do
@@ -340,14 +359,28 @@ listPagesBox focusOnPage pages box = do
            labelSetEllipsize l EllipsizeEnd
            labelSetWidthChars l 20
            labelSetSingleLineMode l True
-           boxPackStart box l PackNatural 1
 
-           on l focus $ \ direction -> do
-             print ("SIGNAL: on focus",direction, title)
+           b <- buttonNew
+           containerAdd b l
+
+           boxPackStart box b PackNatural 1
+
+           on b buttonActivated $ do
+             print ("SIGNAL: on focus", title)
              focusOnPage p
-             return False
+             return ()
         ) pages
+--  containerForeach box
+  widgetShowAll box
   return ()
+
+noEntriesInBox box = do
+  containerForeach box (containerRemove box)
+--  label <- labelNew (Just "(no elements here)") -- Nothing
+  label <- labelNew Nothing
+  labelSetMarkup label "<span color=\"gray\">(no elements here)</span>"
+  containerAdd box label
+  widgetShowAll box
 
 main :: IO ()
 main = do
@@ -355,35 +388,41 @@ main = do
 
  parentsBox <- hBoxNew False 1   :: IO HBox
  siblingsNotebook <- notebookNew :: IO Notebook
- -- centralBox <- frameNew          :: IO Frame
  childrenBox <- hBoxNew False 1  :: IO HBox
 
  inside <- vBoxNew False 1
- containerAdd inside parentsBox
- containerAdd inside siblingsNotebook
- -- containerAdd inside centralBox
- containerAdd inside childrenBox
+ boxPackStart inside parentsBox PackNatural    1
+ boxPackStart inside siblingsNotebook PackGrow 1
+ boxPackStart inside childrenBox PackNatural   1
+
+ widgetSetSizeRequest parentsBox (-1) 50
+ widgetSetSizeRequest childrenBox (-1) 50
 
  currentPage <- newTVarIO (error "current page is undefined for now...")
  btreeVar <- newTVarIO []
 
+ on siblingsNotebook switchPage $ \ i -> do
+     Just w <- notebookGetNthPage siblingsNotebook i
+     btree <- readTVarIO btreeVar
+     case findPageWidget btree w of
+       Nothing -> return () -- some log here?
+       Just pg -> atomically $ writeTVar currentPage pg
+
  let viewPage :: Page -> IO ()
      viewPage page = do
-       print "viewPage"
+       atomically $ writeTVar currentPage page
        btree <- readTVarIO btreeVar
        let (parents,siblings,children) = getPageSurrounds btree page
-       print "viewPage:1"
-       listPagesBox viewPage parents parentsBox    -- update parents
-       print "viewPage:2"
+       case parents of
+         [] -> noEntriesInBox parentsBox
+         parents' -> listPagesBox viewPage parents' parentsBox    -- update parents
        viewPagesNotebook siblings siblingsNotebook -- update siblings
-       -- print "viewPage:3"
-       -- showPage page centralBox                    -- show webview inside central box
-       print "viewPage:4"
-       listPagesBox viewPage children childrenBox  -- update children
+       case children of
+         [] -> noEntriesInBox childrenBox
+         children' -> listPagesBox viewPage children' childrenBox  -- update children
 
        selectPageNotebook page siblingsNotebook    -- open this specific page in notebook
-       print (length btree)
-       mapM_ print (levels $ head btree)
+       print btree
        return ()
 
      refreshLayout = do
