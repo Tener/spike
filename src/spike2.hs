@@ -13,7 +13,7 @@ import System.IO.Unsafe
 
 import Graphics.UI.Gtk
 
--- import Control.Concurrent
+import Control.Monad
 import Control.Concurrent.STM
 
 import qualified Data.Foldable as F
@@ -50,7 +50,6 @@ instance Show (MyShow NavigationReason) where
     show (MyShow WebNavigationReasonFormResubmitted)  = "WebNavigationReasonFormResubmitted"
     show (MyShow WebNavigationReasonOther          )  = "WebNavigationReasonOther"
 
-
 isWidgetPage :: Widget -> Page -> IO Bool
 isWidgetPage w p = do
   return (pgWidget p == w)
@@ -65,6 +64,11 @@ getPageTitle p = do
   case mtit of
     Nothing -> return (hiNow h)
     Just t -> return t
+
+debugBTree :: [Tree Page] -> IO ()
+debugBTree btree = do
+  btree' <- mapM (T.mapM (\p -> fmap show $ getPageTitle p)) btree
+  putStrLn (drawForest btree')
 
 -- operations on single page
 -- | install listeners for various signals
@@ -108,6 +112,69 @@ hookupWebView web createSubPage = do
  -- closeWebView
  -- titleChanged
 
+  hoveredLink <- newTVarIO Nothing
+
+  on web hoveringOverLink $ \ title uri -> do
+    print ("[hoveringOverLink]: ",title,uri)
+    atomically $ writeTVar hoveredLink uri
+
+  -- navigation
+  on web navigationPolicyDecisionRequested $ \ webframe networkReq webNavAct webPolDec -> do
+    print "[navigationPolicyDecisionRequested]"
+    navReason <- webNavigationActionGetReason webNavAct
+    case navReason of
+      WebNavigationReasonLinkClicked -> do
+        print (MyShow navReason)
+        muri <- networkRequestGetUri networkReq
+        kmod <- webNavigationActionGetModifierState webNavAct
+        mbut <- webNavigationActionGetButton webNavAct
+        print (muri,kmod,mbut)
+        -- midle click and ctrl+click will spawn child
+        -- shift+click spawn toplevel window
+        case (mbut,kmod,muri) of
+          -- middle click
+          (2,_,Just uri) -> do
+                     print ("loading uri in sub [1]",uri)
+                     wv <- createSubPage
+                     webViewLoadRequest wv networkReq
+                     return True
+          -- ctrl+click
+          (_,4,Just uri) -> do
+                     print ("loading uri in sub [2]",uri)
+                     wv <- createSubPage
+                     webViewLoadRequest wv networkReq
+                     return True
+          -- shift+click
+          (_,1,Just uri) -> do
+                     print ("loading uri in sub [3]",uri)
+                     wv <- createSubPage
+                     webViewLoadRequest wv networkReq
+                     return True
+          -- otherwise
+          _ -> return False
+
+--        print =<< webNavigationActionGetTargetFrame webNavAct
+--        return False
+      _ -> do
+        print (MyShow navReason)
+        return False
+
+  -- new window via JavaScript
+  on web newWindowPolicyDecisionRequested $ \ webframe networkReq webNavAct webPolDec -> do
+    return False
+
+--  on web Graphics.UI.Gtk.WebKit.WebView.populatePopup $ \ menu -> do
+--    print ("[populate popup]")
+--    hovered <- readTVarIO hoveredLink
+--    case hovered of
+--      Nothing -> return ()
+--      Just uri -> do
+--                   menuShellAppend menu =<< menuItemNewWithLabel ("1: " ++ uri)
+--                   menuShellAppend menu =<< menuItemNewWithLabel ("2: " ++ uri)
+--                   widgetShowAll menu
+
+  -- statusBarTextChanged
+
   return ()
 
 newWeb :: BrowseTreeState -> IO () -> String -> IO (Widget, WebView)
@@ -117,7 +184,7 @@ newWeb btreeSt refreshLayout url = do
   webViewSetTransparent web True
   let loadHome = webViewLoadUri web url
   loadHome
-  webViewSetMaintainsBackForwardList web False -- TODO: or maybe True?
+  -- webViewSetMaintainsBackForwardList web False -- TODO: or maybe True?
   on web titleChanged $ \ _ _ -> refreshLayout
 
   -- plugins are causing trouble. disable them.
@@ -151,7 +218,8 @@ newWeb btreeSt refreshLayout url = do
       newChildPage = do
         print "[newChildPage called]"
         btree <- readTVarIO btreeSt
-        print btree
+--        print btree
+        debugBTree btree
         case findPageWidget btree widget of
           Just p -> do
             ww' <- newWeb btreeSt refreshLayout "about:blank"
@@ -378,7 +446,7 @@ noEntriesInBox box = do
   containerForeach box (containerRemove box)
 --  label <- labelNew (Just "(no elements here)") -- Nothing
   label <- labelNew Nothing
-  labelSetMarkup label "<span color=\"gray\">(no elements here)</span>"
+  labelSetMarkup label "<span color=\"#909090\">(no elements here)</span>"
   containerAdd box label
   widgetShowAll box
 
@@ -389,24 +457,19 @@ main = do
  parentsBox <- hBoxNew False 1   :: IO HBox
  siblingsNotebook <- notebookNew :: IO Notebook
  childrenBox <- hBoxNew False 1  :: IO HBox
+ notebookSetScrollable siblingsNotebook True
+ notebookSetPopup siblingsNotebook True
 
  inside <- vBoxNew False 1
  boxPackStart inside parentsBox PackNatural    1
  boxPackStart inside siblingsNotebook PackGrow 1
  boxPackStart inside childrenBox PackNatural   1
 
- widgetSetSizeRequest parentsBox (-1) 50
- widgetSetSizeRequest childrenBox (-1) 50
+ widgetSetSizeRequest parentsBox (-1) 30
+ widgetSetSizeRequest childrenBox (-1) 30
 
  currentPage <- newTVarIO (error "current page is undefined for now...")
  btreeVar <- newTVarIO []
-
- on siblingsNotebook switchPage $ \ i -> do
-     Just w <- notebookGetNthPage siblingsNotebook i
-     btree <- readTVarIO btreeVar
-     case findPageWidget btree w of
-       Nothing -> return () -- some log here?
-       Just pg -> atomically $ writeTVar currentPage pg
 
  let viewPage :: Page -> IO ()
      viewPage page = do
@@ -422,7 +485,7 @@ main = do
          children' -> listPagesBox viewPage children' childrenBox  -- update children
 
        selectPageNotebook page siblingsNotebook    -- open this specific page in notebook
-       print btree
+       -- print btree
        return ()
 
      refreshLayout = do
@@ -444,6 +507,18 @@ main = do
 --                       writeTVar btreeVar [tp]
 --                       writeTVar currentPage (rootLabel tp)
          return ()
+
+ siblingsNotebookPage <- newTVarIO 0
+ on siblingsNotebook switchPage $ \ i -> do
+     j <- readTVarIO siblingsNotebookPage
+     print $ "SIGNAL: siblingsNotebook switchPage " ++ show (j,i)
+     atomically $ writeTVar siblingsNotebookPage j
+     Just w <- notebookGetNthPage siblingsNotebook i
+     btree <- readTVarIO btreeVar
+     case findPageWidget btree w of
+       Nothing -> return () -- some log here?
+       Just pg -> atomically $ writeTVar currentPage pg
+--     when (i /= j) refreshLayout
 
  spawnHomepage
  newTopPage btreeVar refreshLayout "http://wp.pl"
