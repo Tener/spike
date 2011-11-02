@@ -459,6 +459,35 @@ newScrolledWindowWithViewPort child = do
   scrolledWindowAddWithViewport sw child
   return sw
 
+browseTreeToDot btree = do
+  
+
+visualBrowseTreeWidget btreeVar = do
+  -- webkit widget
+  web <- webViewNew
+  webViewSetTransparent web True
+
+  -- scrolled window to enclose the webkit
+  scrollWeb <- scrolledWindowNew Nothing Nothing
+  containerAdd scrollWeb web
+
+  settings <- webViewGetWebSettings web
+  set settings [webSettingsEnablePlugins := False]
+  
+  on web navigationPolicyDecisionRequested $ \ webframe networkReq webNavAct webPolDec -> do
+    print "[navigationPolicyDecisionRequested]"
+    muri <- networkRequestGetUri networkReq
+    case muri of
+      Nothing -> return ()
+      Just uri -> print ("visualBrowseTreeWidget",uri)
+
+    return True
+
+  -- watch btreeVar for changes, update
+
+  return scrollWeb
+
+
 main :: IO ()
 main = do
  initGUI
