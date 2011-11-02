@@ -19,5 +19,5 @@ Executable spike2
   Main-is:           spike2.hs
   Other-modules:     Utils
   Hs-source-dirs:    src
-  Build-depends:     webkit == 0.12.*, containers, gtk, base, stm, mtl > 2
+  Build-depends:     webkit == 0.12.*, containers, gtk, base, stm, mtl > 2, rosezipper, process
   Ghc-options:       -threaded -rtsopts
