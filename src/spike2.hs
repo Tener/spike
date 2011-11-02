@@ -453,6 +453,12 @@ noEntriesInBox box = do
   containerAdd box label
   widgetShowAll box
 
+newScrolledWindowWithViewPort child = do
+  sw <- scrolledWindowNew Nothing Nothing
+  scrolledWindowSetPolicy sw PolicyAutomatic PolicyAutomatic
+  scrolledWindowAddWithViewport sw child
+  return sw
+
 main :: IO ()
 main = do
  initGUI
@@ -464,9 +470,9 @@ main = do
  notebookSetPopup siblingsNotebook True
 
  inside <- vBoxNew False 1
- boxPackStart inside parentsBox PackNatural    1
+ (\sw -> boxPackStart inside sw PackNatural 1) =<< newScrolledWindowWithViewPort parentsBox
  boxPackStart inside siblingsNotebook PackGrow 1
- boxPackStart inside childrenBox PackNatural   1
+ (\sw -> boxPackStart inside sw PackNatural 1) =<< newScrolledWindowWithViewPort childrenBox
 
  widgetSetSizeRequest parentsBox (-1) 30
  widgetSetSizeRequest childrenBox (-1) 30
