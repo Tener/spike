@@ -75,7 +75,7 @@ debugBTree :: [Tree Page] -> IO ()
 debugBTree btree = do
   btree' <- mapM (T.mapM (\p -> fmap show $ getPageTitle p)) btree
   putStrLn (drawForest btree')
-  
+
 
 -- operations on single page
 -- | install listeners for various signals
@@ -184,6 +184,23 @@ hookupWebView web createSubPage = do
 
   return ()
 
+addressBarNew :: WebViewClass self => self -> IO Entry
+addressBarNew web = do
+  ec <- entryNew
+  entrySetActivatesDefault ec True
+  on ec entryActivate $ do
+     text <- entryGetText ec
+     webViewLoadUri web text
+  on web loadCommitted $ \ frame -> do
+     uri <- webFrameGetUri frame
+     uri2 <- webViewGetUri web
+     when (uri /= uri2) (print $ "INFO: addressBar: uri/uri2 mismatch: " ++ show (uri,uri2))
+     case catMaybes [uri,uri2] of
+       (x:_) -> entrySetText ec x
+       _ -> print ("INFO: addressBar: no text to set")
+     return ()
+  return ec
+
 newWeb :: BrowseTreeState -> IO () -> String -> IO (Widget, WebView)
 newWeb btreeSt refreshLayout url = do
   -- webkit widget
@@ -203,6 +220,7 @@ newWeb btreeSt refreshLayout url = do
   containerAdd scrollWeb web
 
   -- menu
+  addressBar <- addressBarNew web
   menu <- hBoxNew False 1
   quit <- buttonNewWithLabel "Quit"
   reload <- buttonNewWithLabel "Reload"
@@ -212,6 +230,7 @@ newWeb btreeSt refreshLayout url = do
   boxPackEnd menu quit PackNatural 1
   boxPackStart menu reload PackNatural 1
   boxPackStart menu goHome PackNatural 1
+  boxPackStart menu addressBar PackGrow 1
 
   -- fill the page
   page <- vPanedNew
@@ -468,7 +487,7 @@ newScrolledWindowWithViewPort child = do
 browseTreeToSVG :: [Tree Page] -> IO String
 browseTreeToSVG btree = do
   let ellipsis t n | length t < n = t
-                   | otherwise = take n t ++ "..." 
+                   | otherwise = take n t ++ "..."
 
   nodeID <- newTVarIO (0::Int)
   btree' <- mapM (T.mapM (\p -> do
@@ -478,25 +497,25 @@ browseTreeToSVG btree = do
                    return iden
             t <- getPageTitle p
             return (i,t))) btree
-  
+
   let prelude = unlines ["digraph \"Browse tree\" {",
                          "graph [",
                          "fontname = \"Helvetica-Oblique\",",
                          "page = 10",
-                         "size = 30", 
+                         "size = 30",
                          " ];"]
       -- labels = unlines [ printf "d%d [label=\"%s\"];" i t | (i,t) <- concatMap flatten btree' ]
       footer = "}"
 
       btreeZip = concatMap flattenToZipper' btree' -- ellipsis t 15
-      labels = unlines [ printf "d%d [URL=\"http://google.com\", shape=polygon, fixedsize=true, fontsize=8, width=1.25, height=0.25, tooltip=\"%s\", label=\"%s\"];" 
+      labels = unlines [ printf "d%d [URL=\"http://google.com\", shape=polygon, fixedsize=true, fontsize=8, width=1.25, height=0.25, tooltip=\"%s\", label=\"%s\"];"
                                 i t (ellipsis t 10) | (i,t) <- map label btreeZip ]
-      edges = unlines [ printf "d%d -> d%d;" (fst . label . fromJust . parent $ z ) (fst . label $ z) 
-                            | z <- btreeZip, 
+      edges = unlines [ printf "d%d -> d%d;" (fst . label . fromJust . parent $ z ) (fst . label $ z)
+                            | z <- btreeZip,
                               parent z /= Nothing]
 
       edges2 =  [ ((fst . label . fromJust . parent $ z ),(fst . label $ z))
-                      | z <- btreeZip, 
+                      | z <- btreeZip,
                              parent z /= Nothing]
 
 
@@ -514,7 +533,7 @@ browseTreeToSVG btree = do
 
 flattenToZipper :: Tree a -> [TreePos Full a]
 flattenToZipper n@(Node _ sub) = fromTree n : concatMap flattenToZipper sub
-  
+
 
 flattenToZipper' :: Tree a -> [TreePos Full a]
 flattenToZipper' n = go (fromTree n) where
@@ -538,7 +557,7 @@ visualBrowseTreeWidget btreeVar = do
   let refreshSVG = do
         svg <- browseTreeToSVG =<< readTVarIO btreeVar
         webViewLoadString web svg (Just "image/svg+xml") Nothing ""
-  
+
   on web navigationPolicyDecisionRequested $ \ webframe networkReq webNavAct webPolDec -> do
     print "[navigationPolicyDecisionRequested]"
     muri <- networkRequestGetUri networkReq
@@ -625,19 +644,19 @@ main = do
 --                       writeTVar btreeVar [tp]
 --                       writeTVar currentPage (rootLabel tp)
          return ()
-       
+
  var <- newTVarIO 0
  on siblingsNotebook switchPage $ \ i -> (callDepthCount var $ \depth -> dontReenter refreshLayoutReenter $ do
      print $ "SIGNAL: siblingsNotebook switchPage [d=" ++ show depth ++ "] :" ++ show i
- 
+
      Just w <- notebookGetNthPage siblingsNotebook i
      btree <- readTVarIO btreeVar
      case findPageWidget btree w of
        Nothing -> print "SIGNAL: siblingsNotebook switchPage: no page?"
        Just pg -> (atomically $ writeTVar currentPage pg)
      refreshLayout)
-     
-                                                                                                            
+
+
  let watchdog page = do
          print ("WATCHDOG: currentPage=",page)
          page' <- waitTVarChangeFrom page currentPage
@@ -683,7 +702,7 @@ main = do
               containerChild := visualBT,
               windowAllowGrow := True ]
  widgetShowAll window2
- 
+
  -- viewPage topPage
  refreshLayout
 
