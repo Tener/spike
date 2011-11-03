@@ -489,7 +489,7 @@ browseTreeToSVG btree = do
       footer = "}"
 
       btreeZip = concatMap flattenToZipper' btree' -- ellipsis t 15
-      labels = unlines [ printf "d%d [URL=\"http://google.com\", shape=polygon, fixedsize=true, fontsize=8, width=1.25, height=0.25, labeltooltip=\"%s\", label=\"%s\"];" 
+      labels = unlines [ printf "d%d [URL=\"http://google.com\", shape=polygon, fixedsize=true, fontsize=8, width=1.25, height=0.25, tooltip=\"%s\", label=\"%s\"];" 
                                 i t (ellipsis t 10) | (i,t) <- map label btreeZip ]
       edges = unlines [ printf "d%d -> d%d;" (fst . label . fromJust . parent $ z ) (fst . label $ z) 
                             | z <- btreeZip, 
