@@ -1,4 +1,4 @@
-{-# LANGUAGE PackageImports, FlexibleInstances, DoRec #-}
+{-# LANGUAGE PackageImports, FlexibleInstances, DoRec, ForeignFunctionInterface #-}
 module Main where
 
 import Graphics.UI.Gtk.WebKit.WebFrame
@@ -524,8 +524,8 @@ browseTreeToSVG btree = do
   print everything
   print edges2
   tot@(code,svg,dotErr) <- readProcessWithExitCode "dot" ["-Tsvg"] everything
-  _ <- readProcessWithExitCode "dot" ["-Tsvg","-ograph.svg"] everything
-  _ <- readProcessWithExitCode "dot" ["-ograph.dot"] everything
+ -- _ <- readProcessWithExitCode "dot" ["-Tsvg","-ograph.svg"] everything
+ -- _ <- readProcessWithExitCode "dot" ["-ograph.dot"] everything
   print tot
   case code of
     ExitSuccess -> return svg
@@ -580,10 +580,12 @@ visualBrowseTreeWidget btreeVar = do
   refreshSVG
   return (toWidget scrollWeb)
 
+foreign import ccall "spike_setup_webkit_globals" spike_setup_webkit_globals :: IO ()
 
 main :: IO ()
 main = do
  initGUI
+ spike_setup_webkit_globals
 
  parentsBox <- hBoxNew False 1   :: IO HBox
  siblingsNotebook <- notebookNew :: IO Notebook

@@ -21,3 +21,6 @@ Executable spike2
   Hs-source-dirs:    src
   Build-depends:     webkit == 0.12.*, containers, gtk, base, stm, mtl > 2, rosezipper, process
   Ghc-options:       -rtsopts
+  C-sources: cbits/cbits.c
+  pkgconfig-depends: libsoup-gnome-2.4
+ -- , webkitgtk-3.0
