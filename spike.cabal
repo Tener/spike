@@ -17,9 +17,9 @@ Executable spike
 
 Executable spike2
   Main-is:           spike2.hs
-  Other-modules:     Utils,  VisualBrowseTree, Datatypes, Graphs
+  Other-modules:     Utils,  VisualBrowseTree, Datatypes, Graphs, CFunctions
   Hs-source-dirs:    src
-  Build-depends:     webkit == 0.12.*, containers, gtk, base, stm, mtl > 2, rosezipper, process
+  Build-depends:     webkit == 0.12.*, containers, gtk, base, stm, mtl > 2, rosezipper, process, directory, filepath
   Ghc-options:       -rtsopts
   C-sources: cbits/cbits.c
   pkgconfig-depends: libsoup-gnome-2.4

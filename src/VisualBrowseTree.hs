@@ -121,3 +121,14 @@ visualBrowseTreeWidget btreeVar = do
 
   refreshSVG
   return (toWidget scrollWeb)
+
+visualBrowseTreeWindow btreeVar = do
+  window <- windowNew
+  visualBT <- visualBrowseTreeWidget btreeVar
+  set window [ containerBorderWidth := 10,
+              windowTitle := "Spike browser - visual browse tree",
+              containerChild := visualBT,
+              windowAllowGrow := True ]
+  widgetShowAll window
+
+  return window

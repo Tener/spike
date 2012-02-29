@@ -10,6 +10,8 @@ import Graphics.UI.Gtk.WebKit.WebNavigationAction
 
 import System.IO.Unsafe
 import System.Process
+import System.Directory
+import System.FilePath
 import System.Exit
 
 import Graphics.UI.Gtk
@@ -30,6 +32,7 @@ import Utils
 import NotebookSimple
 import Datatypes
 import VisualBrowseTree
+import CFunctions
 
 import Data.Tree as Tree
 
@@ -322,13 +325,18 @@ noEntriesInBox box = do
 
 --------------
 
-foreign import ccall "spike_setup_webkit_globals" spike_setup_webkit_globals :: IO ()
+setupGlobals = do
+  appDir <- getAppUserDataDirectory "Spike"
+  createDirectoryIfMissing False appDir
+
+  spikeSetupWebkitGlobals (appDir </> "spike.webkit.db") (appDir </> "spike.webkit.cookie.db")
 
 main :: IO ()
 main = do
  initGUI
 
- spike_setup_webkit_globals
+ setupGlobals
+ 
  -- glue together gui. yuck.
  parentsBox <- hBoxNew False 1   :: IO HBox
 
@@ -400,8 +408,10 @@ main = do
               windowAllowGrow := True ]
  widgetShowAll window
 
- -- refresh layout once and run GTK loop
+ -- tree view window
+ visualBrowseTreeWindow btreeVar
 
+ -- refresh layout once and run GTK loop
  refreshLayout
  mainGUI
 
