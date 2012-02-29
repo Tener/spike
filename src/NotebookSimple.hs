@@ -25,21 +25,20 @@ newScrolledWindowWithViewPort child = do
   sw <- scrolledWindowNew Nothing Nothing
   scrolledWindowSetPolicy sw PolicyAutomatic PolicyAutomatic
   scrolledWindowAddWithViewport sw child
+  (wx,wy) <- widgetGetSizeRequest child
+  widgetSetSizeRequest sw (wx+5) (wy+5)
   return sw
 
 notebookSimpleNew :: (Page -> IO ()) -> IO NotebookSimple
 notebookSimpleNew focusOnPage = do
   buttonsBox <- hBoxNew False 1
-  tabsBox <- hBoxNew False 1
+  contentBox <- hBoxNew False 1
   vbox <- vBoxNew False 1
 
-  widgetSetSizeRequest buttonsBox (-1) 30
+  widgetSetSizeRequest buttonsBox (-1) 40
 
   (\sw -> boxPackStart vbox sw PackNatural 1) =<< newScrolledWindowWithViewPort buttonsBox
-  boxPackStart vbox tabsBox PackGrow 1
-
---  containerAdd vbox buttonsBox
---  containerAdd vbox tabsBox
+  boxPackStart vbox contentBox PackGrow 1
 
   widgetShowAll vbox
 
@@ -47,19 +46,15 @@ notebookSimpleNew focusOnPage = do
   curr <- newTVarIO Nothing
 
   let updateButtons = postGUIAsync $ do
-
          pages <- readTVarIO pgs
          listPagesBox focusOnPage pages buttonsBox 
-
-         -- let setDisplayedWidget page = atomically $ writeTVar curr page
-         -- on b buttonActivated $ atomically $ writeTVar curr
 
       updatePage = do 
         wg <- getCurrentWidget
         case wg of
           Just wg' -> postGUIAsync (do
-                                     containerForeach tabsBox (containerRemove tabsBox)
-                                     set tabsBox [ containerChild := (pgWidget wg') ] >> widgetShowAll vbox)
+                                     containerForeach contentBox (containerRemove contentBox)
+                                     set contentBox [ containerChild := (pgWidget wg') ] >> widgetShowAll vbox)
           Nothing -> print "strange stuff."
 
       getCurrentWidget = do
@@ -83,8 +78,7 @@ notebookSimpleNew focusOnPage = do
   forkIO (watchdog =<< readTVarIO curr)
 
   let updateAll = updateButtons >> updatePage
-
-  return (NotebookSimple { ns_tabs = tabsBox
+  return (NotebookSimple { ns_tabs = contentBox
                          , ns_widget = (toWidget vbox)
                          , ns_pages = pgs
                          , ns_currentPage = curr
@@ -95,7 +89,6 @@ notebookSimpleAddPage ns@(ns_pages -> pages) page = do
   atomically $ do
     pages' <- readTVar pages
     writeTVar pages (pages' ++ [page])
-
   notebookSimpleSelectPageIfNone ns
 
 notebookSimpleSelectPage :: NotebookSimple -> Page -> IO ()
@@ -105,7 +98,6 @@ notebookSimpleSelectPage ns page = do
     pages <- readTVar (ns_pages ns)
     writeTVar (ns_currentPage ns) (elemIndex page pages)
   
-
 notebookSimpleSelectPageIfNone :: NotebookSimple -> IO ()
 notebookSimpleSelectPageIfNone ns = do
   atomically $ do
@@ -137,6 +129,5 @@ listPagesBox focusOnPage pages box = do
              focusOnPage p
              return ()
         ) pages
---  containerForeach box
   widgetShowAll box
   return ()

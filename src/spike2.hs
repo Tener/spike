@@ -7,7 +7,6 @@ import Graphics.UI.Gtk.WebKit.Download
 import Graphics.UI.Gtk.WebKit.WebSettings
 import Graphics.UI.Gtk.WebKit.NetworkRequest
 import Graphics.UI.Gtk.WebKit.WebNavigationAction
--- import Graphics.UI.Gtk.WebKit.WebWindowFeatures
 
 import System.IO.Unsafe
 import System.Process
@@ -33,8 +32,6 @@ import Datatypes
 import VisualBrowseTree
 
 import Data.Tree as Tree
-
--- import "mtl" Control.Monad.Trans
 
 debugBTree :: [Tree Page] -> IO ()
 debugBTree btree = do
@@ -74,7 +71,7 @@ hookupWebView web createSubPage = do
 
   -- on web downloadRequested $ \ _ -> print "downloadRequested" >> return False
 
-  -- JavaScript stuff: TODO
+ -- JavaScript stuff: TODO
  -- scriptAlert
  -- scriptConfirm
  -- scriptPrompt
@@ -209,7 +206,6 @@ newWeb btreeSt refreshLayout url = do
       newChildPage = do
         print "[newChildPage called]"
         btree <- readTVarIO btreeSt
---        print btree
         debugBTree btree
         case findPageWidget btree widget of
           Just p -> do
@@ -237,7 +233,6 @@ navigateToPage page url = do
   webViewLoadUri (pgWeb page) url
 
 -- operations on tree
-
 newTopPage :: BrowseTreeState -> IO () -> String -> IO Page
 newTopPage btvar refreshLayout url = do
   ww <- newWeb btvar refreshLayout url
@@ -277,7 +272,6 @@ findPageWidget btree w = let fun p = pgWidget p == w
                              [] -> Nothing
                              (x:_) -> Just x
 
--- getPageSurrounds :: BrowseTree -> Page -> ([Page],[Page],[Page])
 getPageSurrounds :: Eq a => [Tree a] -> a -> ([a], [a], [a])
 getPageSurrounds btree p | not (any (F.elem p) btree) = ([],[p],[])
                          | otherwise =
@@ -288,19 +282,18 @@ getPageSurrounds btree p | not (any (F.elem p) btree) = ([],[p],[])
                                  siblings = map rootLabel (getPageSiblings btree p)
                                  children = map rootLabel (getPageChildren btree p)
                              in (parents,siblings,children)
+
 -- returns node's siblings
 getPageSiblings :: Eq b => [Tree b] -> b -> [Tree b]
 getPageSiblings btree p = case getPageParent btree p of
                             Nothing -> btree
                             Just x -> subForest x
 
---getPageChildren :: BrowseTree -> Page -> BrowseTree
 getPageChildren :: Eq b => [Tree b] -> b -> Forest b
 getPageChildren btree p = case filter ((==p) . rootLabel) (concatMap subtrees btree) of
                             [] -> error "Element (page) not found in Forest"
                             (Node _ sub:_) -> sub
 
--- getPageParent :: Eq a => [Tree a] -> Tree a -> Forest a
 getPageParent :: Eq b => [Tree b] -> b -> Maybe (Tree b)
 getPageParent btree p = case (filter (any ((==p) . rootLabel) . subForest) (subtrees' btree)) of
                             [] -> Nothing
@@ -314,30 +307,14 @@ subtrees' = concatMap subtrees
 
 -- notebook synchronization
 
--- viewPagesNotebook :: [Page] -> Notebook -> IO ()
--- viewPagesNotebook pages nb = do
---   containerForeach nb (containerRemove nb)
---   mapM_ (\p -> getPageTitle p >>= notebookAppendPage nb (pgWidget p)) pages
---   widgetShowAll nb
-
 viewPagesSimpleNotebook :: [Page] -> NotebookSimple -> IO ()
 viewPagesSimpleNotebook pages nb = do
   atomically $ writeTVar (ns_pages nb) pages
   ns_refresh nb
 
--- -- | open specified page in notebook
--- selectPageNotebook :: Page -> Notebook -> IO ()
--- selectPageNotebook pg nb = do
---   page <- notebookPageNum nb (pgWidget pg)
---   case page of
---     Nothing -> print "selectPageNotebook: Warning: no such page in notebook" -- TODO: better logging
---     Just i -> notebookSetCurrentPage nb i
-
-
 noEntriesInBox :: ContainerClass self => self -> IO ()
 noEntriesInBox box = do
   containerForeach box (containerRemove box)
---  label <- labelNew (Just "(no elements here)") -- Nothing
   label <- labelNew Nothing
   labelSetMarkup label "<span color=\"#909090\">(no elements here)</span>"
   containerAdd box label
@@ -345,29 +322,28 @@ noEntriesInBox box = do
 
 --------------
 
+foreign import ccall "spike_setup_webkit_globals" spike_setup_webkit_globals :: IO ()
+
 main :: IO ()
 main = do
  initGUI
 
+ spike_setup_webkit_globals
  -- glue together gui. yuck.
  parentsBox <- hBoxNew False 1   :: IO HBox
-
- siblingsNotebook <- notebookNew :: IO Notebook
- notebookSetScrollable siblingsNotebook True
- notebookSetPopup siblingsNotebook True
 
  viewPageRef <- newIORef undefined
  siblingsNotebookSimple <- notebookSimpleNew (\p -> do { fun <- readIORef viewPageRef; fun p}) :: IO NotebookSimple
  childrenBox <- hBoxNew False 1  :: IO HBox
 
+ widgetSetSizeRequest parentsBox (-1) 40
+ widgetSetSizeRequest childrenBox (-1) 40
+
  inside <- vBoxNew False 1
  (\sw -> boxPackStart inside sw PackNatural 1) =<< newScrolledWindowWithViewPort parentsBox
- -- boxPackStart inside siblingsNotebook PackGrow 1
  boxPackStart inside (ns_widget siblingsNotebookSimple) PackGrow 1
  (\sw -> boxPackStart inside sw PackNatural 1) =<< newScrolledWindowWithViewPort childrenBox
 
- widgetSetSizeRequest parentsBox (-1) 30
- widgetSetSizeRequest childrenBox (-1) 30
 
  -- global state
 
@@ -379,9 +355,6 @@ main = do
  let viewPage :: Page -> IO ()
      viewPage page = do
        print "CALL: viewPage"
-
-       -- notebookSimpleAddPage siblingsNotebookSimple page
-
        atomically $ writeTVar currentPage page
        refreshLayout
    
@@ -394,12 +367,6 @@ main = do
 
        viewPagesSimpleNotebook siblings siblingsNotebookSimple
        notebookSimpleSelectPage siblingsNotebookSimple page
-
-       --       ns_refresh siblingsNotebookSimple
-       -- selectPageNotebook page siblingsNotebook
-       -- pages <- readTVarIO (ns_pages siblingsNotebookSimple)
-       -- notebookSimpleSelectPage siblingsNotebookSimple (Data.List.elemIndex page pages)
-       -- notebookSimpleSelectPage siblingsNotebookSimple (Just 0)
 
        case parents of
          [] -> noEntriesInBox parentsBox
