@@ -28,6 +28,7 @@ import qualified Data.List
 import Utils
 import NotebookSimple
 import Datatypes
+import VisualBrowseTree
 
 import Data.Tree as Tree
 
@@ -238,37 +239,6 @@ newWeb btreeSt refreshLayout url = do
 
   return ww
 
--- -- todo: refactor historyMove{Forward,Backward}
--- historyMoveForward :: Page -> IO ()
--- historyMoveForward page = do
---   url <- atomically $ do
---     hist <- readTVar (pgHistory page)
---     case hiNext hist of
---       [] -> return Nothing
---       (x:xs) -> do
---         let h' = Hist x (hiNow hist : hiPrev hist) xs
---         writeTVar (pgHistory page) h'
---         return (Just x)
---  
---   case url of
---     Just url' -> webViewLoadUri (pgWeb page) url'
---     Nothing -> return ()
---  
--- historyMoveBackward :: Page -> IO ()
--- historyMoveBackward page = do
---   url <- atomically $ do
---     hist <- readTVar (pgHistory page)
---     case hiPrev hist of
---       [] -> return Nothing
---       (x:xs) -> do
---         let h' = Hist x xs (hiNow hist : hiNext hist)
---         writeTVar (pgHistory page) h'
---         return (Just x)
---  
---   case url of
---     Just url' -> webViewLoadUri (pgWeb page) url'
---     Nothing -> return ()
-
 -- move to new page, discard any hiNext out there
 navigateToPage :: Page -> String -> IO ()
 navigateToPage page url = do
@@ -280,24 +250,6 @@ navigateToPage page url = do
   webViewLoadUri (pgWeb page) url
 
 -- operations on tree
-
--- -- new browse tree. contains single page with home page.
--- -- newBrowseTree :: IO BrowseTreeState
--- newBrowseTree :: IO (BrowseTreeState, Page)
--- newBrowseTree = do
---   let homepage = "https://google.com"
---   btvar <- newTVarIO []
---   ww@(_widget,_web) <- newWeb btvar homepage
---   tp <- newLeafURL ww homepage
---   -- note: a minor race condition.
---   -- consider a case when homepage contains javascript that opens a new (sub)page.
---   -- this can be fired before the following lines,
---   -- in which case this new page get's lost,
---   -- because findPageWidget will return Nothing.
---   -- this will in turn (currently) cause application crash, due to unhandled 'error'.
---
---   atomically $ writeTVar btvar [tp]
---   return (btvar, rootLabel tp)
 
 newTopPage :: BrowseTreeState -> IO () -> String -> IO Page
 newTopPage btvar refreshLayout url = do
@@ -375,35 +327,6 @@ subtrees' = concatMap subtrees
 
 -- notebook synchronization
 
--- -- | view selected pages in notebook. clears existing pages first.
--- viewPagesNotebook' :: [Page] -> Notebook -> IO ()
--- viewPagesNotebook' pages nb = do
---   -- remove pages we don't need
---   current <- (zip [0..]) `fmap` containerGetChildren nb
---   let aux _ [] = return ()
---       aux n ((i,w):ws) = do
---          ok <- mapM (isWidgetPage w) pages
---          if any id ok then aux n ws else notebookRemovePage nb (i-n) >> aux (n+1) ws
---   aux 0 current
---  
---   -- add missing pages
---   -- (notebookAppendPage nb)
---   let addMissing p = do
---         let w = pgWidget p
---         n <- notebookPageNum nb w
---         case n of
---           Nothing -> getPageTitle p >>= notebookAppendPage nb w >> return ()
---           Just _ -> return ()
---  
---   mapM_ addMissing pages
---   -- reorder everything to get right order
---   let fixOrder (i,p) = do
---         notebookReorderChild nb (pgWidget p) i
---  
---   mapM_ fixOrder (zip [0..] pages)
---  
---   widgetShowAll nb
-
 viewPagesNotebook :: [Page] -> Notebook -> IO ()
 viewPagesNotebook pages nb = do
   containerForeach nb (containerRemove nb)
@@ -461,60 +384,6 @@ noEntriesInBox box = do
   containerAdd box label
   widgetShowAll box
 
--- newScrolledWindowWithViewPort :: WidgetClass child => child -> IO ScrolledWindow
--- newScrolledWindowWithViewPort child = do
---   sw <- scrolledWindowNew Nothing Nothing
---   scrolledWindowSetPolicy sw PolicyAutomatic PolicyAutomatic
---   scrolledWindowAddWithViewport sw child
---   return sw
-
-browseTreeToSVG :: [Tree Page] -> IO String
-browseTreeToSVG btree = do
-  let ellipsis t n | length t < n = t
-                   | otherwise = take n t ++ "..."
-
-  nodeID <- newTVarIO (0::Int)
-  btree' <- mapM (T.mapM (\p -> do
-            i <- atomically $ do
-                   iden <- readTVar nodeID
-                   writeTVar nodeID (iden+1)
-                   return iden
-            t <- getPageTitle p
-            return (i,t))) btree
-
-  let prelude = unlines ["digraph \"Browse tree\" {",
-                         "graph [",
-                         "fontname = \"Helvetica-Oblique\",",
-                         "page = 10",
-                         "size = 30",
-                         " ];"]
-      -- labels = unlines [ printf "d%d [label=\"%s\"];" i t | (i,t) <- concatMap flatten btree' ]
-      footer = "}"
-
-      btreeZip = concatMap flattenToZipper' btree' -- ellipsis t 15
-      labels = unlines [ printf "d%d [URL=\"http://google.com\", shape=polygon, fixedsize=true, fontsize=8, width=1.25, height=0.25, tooltip=\"%s\", label=\"%s\"];"
-                                i t (ellipsis t 10) | (i,t) <- map label btreeZip ]
-      edges = unlines [ printf "d%d -> d%d;" (fst . label . fromJust . parent $ z ) (fst . label $ z)
-                            | z <- btreeZip,
-                              parent z /= Nothing]
-
-      edges2 =  [ ((fst . label . fromJust . parent $ z ),(fst . label $ z))
-                      | z <- btreeZip,
-                             parent z /= Nothing]
-
-
-      everything = prelude ++ edges ++ labels ++ footer
-
-  print everything
-  print edges2
-  tot@(code,svg,dotErr) <- readProcessWithExitCode "dot" ["-Tsvg"] everything
- -- _ <- readProcessWithExitCode "dot" ["-Tsvg","-ograph.svg"] everything
- -- _ <- readProcessWithExitCode "dot" ["-ograph.dot"] everything
-  print tot
-  case code of
-    ExitSuccess -> return svg
-    ExitFailure c -> return $ printf "<text>Error running 'dot' command. Exit code: %s\n%s</text>" (show c) dotErr
-
 flattenToZipper :: Tree a -> [TreePos Full a]
 flattenToZipper n@(Node _ sub) = fromTree n : concatMap flattenToZipper sub
 
@@ -522,173 +391,6 @@ flattenToZipper n@(Node _ sub) = fromTree n : concatMap flattenToZipper sub
 flattenToZipper' :: Tree a -> [TreePos Full a]
 flattenToZipper' n = go (fromTree n) where
     go z = [z] ++ (fromMaybe [] (fmap go (firstChild z))) ++ (fromMaybe [] (fmap go (next z)))
-
--- visualBrowseTreeWidget :: t -> IO Widget
-visualBrowseTreeWidget :: TVar [Tree Page] -> IO Widget
-visualBrowseTreeWidget btreeVar = do
-  -- webkit widget
-  web <- webViewNew
-  webViewSetTransparent web True
-  webViewSetFullContentZoom web True
-
-  -- scrolled window to enclose the webkit
-  scrollWeb <- scrolledWindowNew Nothing Nothing
-  containerAdd scrollWeb web
-
-  settings <- webViewGetWebSettings web
-  set settings [webSettingsEnablePlugins := False]
-
-  let refreshSVG = do
-        svg <- browseTreeToSVG =<< readTVarIO btreeVar
-        webViewLoadString web svg (Just "image/svg+xml") Nothing ""
-
-  on web navigationPolicyDecisionRequested $ \ webframe networkReq webNavAct webPolDec -> do
-    print "[navigationPolicyDecisionRequested]"
-    muri <- networkRequestGetUri networkReq
-    case muri of
-      Nothing -> return ()
-      Just uri -> print ("visualBrowseTreeWidget",uri)
-
-    return True
-
-  -- watch btreeVar for changes, update
-  let watchdog page = do
-          page' <- waitTVarChangeFrom page btreeVar
-          postGUIAsync refreshSVG
-          watchdog page'
-  forkIO (watchdog =<< readTVarIO btreeVar)
-  forkIO (forever $ do
-            threadDelay (10^6)
-            postGUIAsync refreshSVG)
-
-  refreshSVG
-  return (toWidget scrollWeb)
-
--- foreign import ccall "spike_setup_webkit_globals" spike_setup_webkit_globals :: IO ()
-
----- main_broken :: IO ()
----- main_broken = do
-----  initGUI
-----  -- spike_setup_webkit_globals
-----  
-----  parentsBox <- hBoxNew False 1   :: IO HBox
-----  siblingsNotebook <- notebookNew :: IO Notebook
-----  notebookSetScrollable siblingsNotebook True
-----  notebookSetPopup siblingsNotebook True
-----  childrenBox <- hBoxNew False 1  :: IO HBox
-----  
-----  inside <- vBoxNew False 1
-----  (\sw -> boxPackStart inside sw PackNatural 1) =<< newScrolledWindowWithViewPort parentsBox
-----  boxPackStart inside siblingsNotebook PackGrow 1
-----  (\sw -> boxPackStart inside sw PackNatural 1) =<< newScrolledWindowWithViewPort childrenBox
-----  
-----  widgetSetSizeRequest parentsBox (-1) 30
-----  widgetSetSizeRequest childrenBox (-1) 30
-----  
-----  currentPage <- newTVarIO (error "current page is undefined for now...")
-----  btreeVar <- newTVarIO []
-----  
-----  refreshLayoutReenter <- newTVarIO False
-----  let viewPage :: Page -> IO ()
-----      viewPage page = do
-----        print "CALL: viewPage"
-----        atomically $ writeTVar currentPage page
----- --       btree <- readTVarIO btreeVar
----- --        let (_parents,siblings,_children) = getPageSurrounds btree page
----- --       refreshLayout
-----            -- open this specific page in notebook
-----  
-----      refreshLayout = dontReenter refreshLayoutReenter $ do
-----        print "CALL: refreshLayout"
-----  
-----        btree <- readTVarIO btreeVar
-----        page <- readTVarIO currentPage
-----        let (parents,siblings,children) = getPageSurrounds btree page
-----  
-----        viewPagesNotebook siblings siblingsNotebook -- update siblings
-----        selectPageNotebook page siblingsNotebook
-----  
-----        case parents of
-----          [] -> noEntriesInBox parentsBox
-----          parents' -> listPagesBox viewPage parents' parentsBox    -- update parents
-----        case children of
-----          [] -> noEntriesInBox childrenBox
-----          children' -> listPagesBox viewPage children' childrenBox  -- update children
-----  
-----      -- showPage p box = do
-----      --     containerForeach box (containerRemove box)
-----      --     containerAdd box (pgWidget p)
-----  
-----      spawnHomepage = do
-----          let homepage = "https://google.com"
-----          page <- newTopPage btreeVar refreshLayout homepage
-----          atomically $ writeTVar currentPage page
-----          viewPage page
-----          return ()
-----  
-----  var <- newTVarIO 0
-----  on siblingsNotebook switchPage $ \ i -> (callDepthCount var $ \depth -> dontReenter refreshLayoutReenter $ do
-----      print $ "SIGNAL: siblingsNotebook switchPage [d=" ++ show depth ++ "] :" ++ show i
-----  
-----      Just w <- notebookGetNthPage siblingsNotebook i
-----      btree <- readTVarIO btreeVar
-----      case findPageWidget btree w of
-----        Nothing -> print "SIGNAL: siblingsNotebook switchPage: no page?"
-----        Just pg -> (atomically $ writeTVar currentPage pg)
-----      refreshLayout)
-----  
-----  
-----  let watchdog page = do
-----          print ("WATCHDOG: currentPage=",page)
-----          page' <- waitTVarChangeFrom page currentPage
-----          print ("WATCHDOG: currentPage changed",page,page')
-----          postGUIAsync (refreshLayout)
-----          watchdog page'
-----  forkIO (do
-----           threadDelay (10^6) -- TODO: proper fix
-----           watchdog =<< readTVarIO currentPage)
-----  
----- -- forkIO $ forever $ do
----- --   page <- waitTVarChange currentPage
----- --   print "currentPage changed"
----- --   postGUIAsync (refreshLayout) -- viewPage page)
----- --   threadDelay (10^5)
-----  
-----  
-----  spawnHomepage
-----  newTopPage btreeVar refreshLayout "http://news.google.com"
-----  
-----  -- (btreeVar,topPage) <- newBrowseTree
-----  
----- -- let parentsBox = undefined :: HBox
----- --     siblingsNotebook = undefined :: Notebook
----- --     centralBox = undefined :: Frame
----- --     childrenBox = undefined :: HBox
-----  
-----  
-----  -- show all, enter loop
-----  window <- windowNew
-----  onDestroy window mainQuit
-----  set window [ containerBorderWidth := 10,
-----               windowTitle := "Spike browser",
-----               containerChild := inside,
-----               windowAllowGrow := True ]
-----  widgetShowAll window
-----  
-----  -- tree view window
-----  window2 <- windowNew
-----  visualBT <- visualBrowseTreeWidget btreeVar
-----  set window2 [ containerBorderWidth := 10,
-----               windowTitle := "Spike browser - visual browse tree",
-----               containerChild := visualBT,
-----               windowAllowGrow := True ]
-----  widgetShowAll window2
-----  
-----  -- viewPage topPage
-----  refreshLayout
-----  
-----  mainGUI
-----  return ()
 
 
 --------------
@@ -777,131 +479,9 @@ main = do
               windowAllowGrow := True ]
  widgetShowAll window
 
---  -- show aux window
---  window2 <- windowNew
---  visualBT <- visualBrowseTreeWidget btreeVar
---  set window2 [ containerBorderWidth := 10,
---               windowTitle := "Spike browser - visual browse tree",
---               containerChild := visualBT,
---               windowAllowGrow := True ]
---  widgetShowAll window2
-
-
  -- refresh layout once and run GTK loop
 
  refreshLayout
  mainGUI
 
  return ()
-
---- --
---- 
---- currentPage <- newTVarIO (error "current page is undefined for now...")
---- btreeVar <- newTVarIO []
---- 
----  refreshLayoutReenter <- newTVarIO False
----  let viewPage :: Page -> IO ()
----      viewPage page = do
----        print "CALL: viewPage"
----        atomically $ writeTVar currentPage page
---- --       btree <- readTVarIO btreeVar
---- --        let (_parents,siblings,_children) = getPageSurrounds btree page
---- --       refreshLayout
----            -- open this specific page in notebook
----  
----      refreshLayout = dontReenter refreshLayoutReenter $ do
----        print "CALL: refreshLayout"
----  
----        btree <- readTVarIO btreeVar
----        page <- readTVarIO currentPage
----        let (parents,siblings,children) = getPageSurrounds btree page
----  
----        viewPagesNotebook siblings siblingsNotebook -- update siblings
----        selectPageNotebook page siblingsNotebook
----  
----        case parents of
----          [] -> noEntriesInBox parentsBox
----          parents' -> listPagesBox viewPage parents' parentsBox    -- update parents
----        case children of
----          [] -> noEntriesInBox childrenBox
----          children' -> listPagesBox viewPage children' childrenBox  -- update children
----  
----      -- showPage p box = do
----      --     containerForeach box (containerRemove box)
----      --     containerAdd box (pgWidget p)
----  
----      spawnHomepage = do
----          let homepage = "https://google.com"
----          page <- newTopPage btreeVar refreshLayout homepage
----          atomically $ writeTVar currentPage page
----          viewPage page
---- --         ww <- newWeb btreeVar homepage
---- --         tp <- newLeafURL ww homepage
---- --         atomically $ do
---- --                       writeTVar btreeVar [tp]
---- --                       writeTVar currentPage (rootLabel tp)
----          return ()
----  
----  var <- newTVarIO 0
----  on siblingsNotebook switchPage $ \ i -> (callDepthCount var $ \depth -> dontReenter refreshLayoutReenter $ do
----      print $ "SIGNAL: siblingsNotebook switchPage [d=" ++ show depth ++ "] :" ++ show i
----  
----      Just w <- notebookGetNthPage siblingsNotebook i
----      btree <- readTVarIO btreeVar
----      case findPageWidget btree w of
----        Nothing -> print "SIGNAL: siblingsNotebook switchPage: no page?"
----        Just pg -> (atomically $ writeTVar currentPage pg)
----      refreshLayout)
----  
----  
----  let watchdog page = do
----          print ("WATCHDOG: currentPage=",page)
----          page' <- waitTVarChangeFrom page currentPage
----          print ("WATCHDOG: currentPage changed",page,page')
----          postGUIAsync (refreshLayout)
----          watchdog page'
----  forkIO (do
----           threadDelay (10^6) -- TODO: proper fix
----           watchdog =<< readTVarIO currentPage)
----  
---- -- forkIO $ forever $ do
---- --   page <- waitTVarChange currentPage
---- --   print "currentPage changed"
---- --   postGUIAsync (refreshLayout) -- viewPage page)
---- --   threadDelay (10^5)
----  
----  
----  spawnHomepage
----  newTopPage btreeVar refreshLayout "http://news.google.com"
----  
----  -- (btreeVar,topPage) <- newBrowseTree
----  
---- -- let parentsBox = undefined :: HBox
---- --     siblingsNotebook = undefined :: Notebook
---- --     centralBox = undefined :: Frame
---- --     childrenBox = undefined :: HBox
----  
----  
----  -- show all, enter loop
----  window <- windowNew
----  onDestroy window mainQuit
----  set window [ containerBorderWidth := 10,
----               windowTitle := "Spike browser",
----               containerChild := inside,
----               windowAllowGrow := True ]
----  widgetShowAll window
----  
----  -- tree view window
----  window2 <- windowNew
----  visualBT <- visualBrowseTreeWidget btreeVar
----  set window2 [ containerBorderWidth := 10,
----               windowTitle := "Spike browser - visual browse tree",
----               containerChild := visualBT,
----               windowAllowGrow := True ]
----  widgetShowAll window2
----  
----  -- viewPage topPage
----  refreshLayout
----  
----  mainGUI
----  return ()
