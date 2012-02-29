@@ -1,6 +1,13 @@
 module Utils where
 
 import Control.Concurrent.STM
+import Graphics.UI.Gtk.WebKit.WebView
+import Graphics.UI.Gtk
+import Data.Tree
+import Data.Maybe
+import Data.Tree.Zipper
+
+import Datatypes
 
 -- | wait until the TVar changes it's value from specified outer value
 waitTVarChangeFrom :: (Eq a) => a -> (TVar a) -> IO a
@@ -50,3 +57,29 @@ callDepthCount var act = do
          return v'
   act v
   atomically $ writeTVar var v
+
+----------------
+
+
+isWidgetPage :: Widget -> Page -> IO Bool
+isWidgetPage w p = do
+  return (pgWidget p == w)
+
+isSamePage :: Page -> Page -> Bool
+isSamePage p1 p2 = pgWidget p1 == pgWidget p2
+
+getPageTitle :: Page -> IO String
+getPageTitle p = do
+  mtit <- webViewGetTitle (pgWeb p)
+  h <- readTVarIO (pgHistory p)
+  case mtit of
+    Nothing -> return (hiNow h)
+    Just t -> return t
+
+flattenToZipper :: Tree a -> [TreePos Full a]
+flattenToZipper n@(Node _ sub) = fromTree n : concatMap flattenToZipper sub
+
+
+flattenToZipper' :: Tree a -> [TreePos Full a]
+flattenToZipper' n = go (fromTree n) where
+    go z = [z] ++ (fromMaybe [] (fmap go (firstChild z))) ++ (fromMaybe [] (fmap go (next z)))

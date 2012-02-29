@@ -43,7 +43,7 @@ notebookSimpleNew focusOnPage = do
 
   widgetShowAll vbox
 
-  pgs <- newTVarIO []
+  pgs <- newTVarIO [] :: IO (TVar [Page])
   curr <- newTVarIO Nothing
 
   let updateButtons = postGUIAsync $ do
@@ -51,37 +51,15 @@ notebookSimpleNew focusOnPage = do
          pages <- readTVarIO pgs
          listPagesBox focusOnPage pages buttonsBox 
 
+         -- let setDisplayedWidget page = atomically $ writeTVar curr page
          -- on b buttonActivated $ atomically $ writeTVar curr
-
---          containerForeach buttonsBox (containerRemove buttonsBox)
---          mapM_ (\ pg -> do
---  
---                   
---  
---                   l <- labelNew (Just title) -- TODO: use AccelLabel and shortcuts for specific pages
---                   labelSetEllipsize l EllipsizeEnd
---                   labelSetWidthChars l 20
---                   labelSetSingleLineMode l True
---         
---                   b <- buttonNew
---                   containerAdd b l
---         
---                   boxPackStart buttonsBox b PackNatural 1
---                   
---                   
---                   -- TODO: tutaj powinniśmy pisać zmienną w modelu drzewiastym a nie zmienną z modelu notebooka. ewentualnie można to jakoś powiązać, byle z sensem...
---                   --       zasadniczo przepływ powinien być w jedną tylko stronę, nie powinno być pętli wyzwalaczy
---                   on b buttonActivated $ atomically $ writeTVar curr (Just i) 
---                ) pages
---  
---          widgetShowAll buttonsBox
 
       updatePage = do 
         wg <- getCurrentWidget
         case wg of
           Just wg' -> postGUIAsync (do
                                      containerForeach tabsBox (containerRemove tabsBox)
-                                     set tabsBox [ containerChild := (snd wg') ] >> widgetShowAll vbox)
+                                     set tabsBox [ containerChild := (pgWidget wg') ] >> widgetShowAll vbox)
           Nothing -> print "strange stuff."
 
       getCurrentWidget = do
@@ -106,7 +84,11 @@ notebookSimpleNew focusOnPage = do
 
   let updateAll = updateButtons >> updatePage
 
-  return (NotebookSimple { ns_tabs = tabsBox, ns_widget = (toWidget vbox), ns_pages = pgs, ns_currentPage = curr, ns_refresh = updateAll })
+  return (NotebookSimple { ns_tabs = tabsBox
+                         , ns_widget = (toWidget vbox)
+                         , ns_pages = pgs
+                         , ns_currentPage = curr
+                         , ns_refresh = updateAll })
 
 notebookSimpleAddPage :: NotebookSimple -> Page -> IO ()
 notebookSimpleAddPage ns@(ns_pages -> pages) page = do
@@ -132,3 +114,29 @@ notebookSimpleSelectPageIfNone ns = do
       Nothing -> writeTVar (ns_currentPage ns) (Just 0)
       Just _ -> return ()
 
+
+-- | list pages in a box
+-- listPagesBox :: (BoxClass box) => [Page] -> box -> IO ()
+listPagesBox :: BoxClass box => (Page -> IO a) -> [Page] -> box -> IO ()
+listPagesBox focusOnPage pages box = do
+  containerForeach box (containerRemove box)
+  mapM_ (\p -> do
+           title <- getPageTitle p
+           l <- labelNew (Just title) -- TODO: use AccelLabel and shortcuts for specific pages
+           labelSetEllipsize l EllipsizeEnd
+           labelSetWidthChars l 20
+           labelSetSingleLineMode l True
+
+           b <- buttonNew
+           containerAdd b l
+
+           boxPackStart box b PackNatural 1
+
+           on b buttonActivated $ do
+             print ("SIGNAL: on focus", title)
+             focusOnPage p
+             return ()
+        ) pages
+--  containerForeach box
+  widgetShowAll box
+  return ()

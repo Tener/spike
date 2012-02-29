@@ -18,6 +18,8 @@ import Text.Printf
 import Control.Monad
 import Control.Concurrent.STM
 import Control.Concurrent
+import Control.Applicative
+import Data.IORef
 
 import qualified Data.Foldable as F
 import qualified Data.Traversable as T
@@ -33,21 +35,6 @@ import VisualBrowseTree
 import Data.Tree as Tree
 
 -- import "mtl" Control.Monad.Trans
-
-isWidgetPage :: Widget -> Page -> IO Bool
-isWidgetPage w p = do
-  return (pgWidget p == w)
-
-isSamePage :: Page -> Page -> Bool
-isSamePage p1 p2 = pgWidget p1 == pgWidget p2
-
-getPageTitle :: Page -> IO String
-getPageTitle p = do
-  mtit <- webViewGetTitle (pgWeb p)
-  h <- readTVarIO (pgHistory p)
-  case mtit of
-    Nothing -> return (hiNow h)
-    Just t -> return t
 
 debugBTree :: [Tree Page] -> IO ()
 debugBTree btree = do
@@ -327,53 +314,25 @@ subtrees' = concatMap subtrees
 
 -- notebook synchronization
 
-viewPagesNotebook :: [Page] -> Notebook -> IO ()
-viewPagesNotebook pages nb = do
-  containerForeach nb (containerRemove nb)
-  mapM_ (\p -> getPageTitle p >>= notebookAppendPage nb (pgWidget p)) pages
-  widgetShowAll nb
+-- viewPagesNotebook :: [Page] -> Notebook -> IO ()
+-- viewPagesNotebook pages nb = do
+--   containerForeach nb (containerRemove nb)
+--   mapM_ (\p -> getPageTitle p >>= notebookAppendPage nb (pgWidget p)) pages
+--   widgetShowAll nb
 
 viewPagesSimpleNotebook :: [Page] -> NotebookSimple -> IO ()
 viewPagesSimpleNotebook pages nb = do
-  titles <- mapM getPageTitle pages
-  atomically $ do
-    let newPages = zip titles (map pgWidget pages)
-    writeTVar (ns_pages nb) newPages
+  atomically $ writeTVar (ns_pages nb) pages
   ns_refresh nb
 
--- | open specified page in notebook
-selectPageNotebook :: Page -> Notebook -> IO ()
-selectPageNotebook pg nb = do
-  page <- notebookPageNum nb (pgWidget pg)
-  case page of
-    Nothing -> print "selectPageNotebook: Warning: no such page in notebook" -- TODO: better logging
-    Just i -> notebookSetCurrentPage nb i
+-- -- | open specified page in notebook
+-- selectPageNotebook :: Page -> Notebook -> IO ()
+-- selectPageNotebook pg nb = do
+--   page <- notebookPageNum nb (pgWidget pg)
+--   case page of
+--     Nothing -> print "selectPageNotebook: Warning: no such page in notebook" -- TODO: better logging
+--     Just i -> notebookSetCurrentPage nb i
 
--- | list pages in a box
--- listPagesBox :: (BoxClass box) => [Page] -> box -> IO ()
-listPagesBox :: BoxClass box => (Page -> IO a) -> [Page] -> box -> IO ()
-listPagesBox focusOnPage pages box = do
-  containerForeach box (containerRemove box)
-  mapM_ (\p -> do
-           title <- getPageTitle p
-           l <- labelNew (Just title) -- TODO: use AccelLabel and shortcuts for specific pages
-           labelSetEllipsize l EllipsizeEnd
-           labelSetWidthChars l 20
-           labelSetSingleLineMode l True
-
-           b <- buttonNew
-           containerAdd b l
-
-           boxPackStart box b PackNatural 1
-
-           on b buttonActivated $ do
-             print ("SIGNAL: on focus", title)
-             focusOnPage p
-             return ()
-        ) pages
---  containerForeach box
-  widgetShowAll box
-  return ()
 
 noEntriesInBox :: ContainerClass self => self -> IO ()
 noEntriesInBox box = do
@@ -383,15 +342,6 @@ noEntriesInBox box = do
   labelSetMarkup label "<span color=\"#909090\">(no elements here)</span>"
   containerAdd box label
   widgetShowAll box
-
-flattenToZipper :: Tree a -> [TreePos Full a]
-flattenToZipper n@(Node _ sub) = fromTree n : concatMap flattenToZipper sub
-
-
-flattenToZipper' :: Tree a -> [TreePos Full a]
-flattenToZipper' n = go (fromTree n) where
-    go z = [z] ++ (fromMaybe [] (fmap go (firstChild z))) ++ (fromMaybe [] (fmap go (next z)))
-
 
 --------------
 
@@ -406,7 +356,8 @@ main = do
  notebookSetScrollable siblingsNotebook True
  notebookSetPopup siblingsNotebook True
 
- siblingsNotebookSimple <- notebookSimpleNew :: IO NotebookSimple
+ viewPageRef <- newIORef undefined
+ siblingsNotebookSimple <- notebookSimpleNew (\p -> do { fun <- readIORef viewPageRef; fun p}) :: IO NotebookSimple
  childrenBox <- hBoxNew False 1  :: IO HBox
 
  inside <- vBoxNew False 1
@@ -429,7 +380,7 @@ main = do
      viewPage page = do
        print "CALL: viewPage"
 
-       notebookSimpleAddPage siblingsNotebookSimple "some title" (pgWidget page)
+       -- notebookSimpleAddPage siblingsNotebookSimple page
 
        atomically $ writeTVar currentPage page
        refreshLayout
@@ -442,6 +393,7 @@ main = do
        let (parents,siblings,children) = getPageSurrounds btree page
 
        viewPagesSimpleNotebook siblings siblingsNotebookSimple
+       notebookSimpleSelectPage siblingsNotebookSimple page
 
        --       ns_refresh siblingsNotebookSimple
        -- selectPageNotebook page siblingsNotebook
@@ -461,9 +413,11 @@ main = do
          let homepage = "https://google.com"
          page <- newTopPage btreeVar refreshLayout homepage
          atomically $ writeTVar currentPage page
-         notebookSimpleSelectPage siblingsNotebookSimple 0
+         notebookSimpleSelectPage siblingsNotebookSimple page
          viewPage page
          return ()
+
+ writeIORef viewPageRef viewPage
 
  -- create root page
 
