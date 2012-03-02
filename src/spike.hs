@@ -35,6 +35,7 @@ import VisualBrowseTree
 import CFunctions
 
 import Data.Tree as Tree
+import System.Random
 
 debugBTree :: [Tree Page] -> IO ()
 debugBTree btree = do
@@ -253,7 +254,8 @@ newLeafURL ww url = do
 newPage :: (Widget, WebView) -> String -> IO Page
 newPage (widget,webv) url = do
   hist <- newTVarIO (Hist url [] [])
-  return (Page { pgWidget=widget, pgWeb=webv, pgHistory=hist})
+  ident <- randomIO -- probably should make better effort
+  return (Page {pgWidget=widget, pgWeb=webv, pgHistory=hist, pgIdent=ident})
 
 newLeaf :: Page -> Tree Page
 newLeaf page = Node page []
@@ -409,7 +411,7 @@ main = do
  widgetShowAll window
 
  -- tree view window
- visualBrowseTreeWindow btreeVar
+ visualBrowseTreeWindow viewPage btreeVar
 
  -- refresh layout once and run GTK loop
  refreshLayout
