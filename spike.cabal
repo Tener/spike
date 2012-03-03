@@ -18,9 +18,11 @@ Source-repository head
 
 Executable spike
   Main-is:           spike.hs
-  Other-modules:     Utils, VisualBrowseTree, Datatypes, Graphs, CFunctions, NotebookSimple
+  Other-modules:     Utils, VisualBrowseTree, Datatypes, Graphs, CFunctions, NotebookSimple, GlobalVariables, Commands
   Hs-source-dirs:    src
-  Build-depends:     webkit == 0.12.*, containers, gtk, base == 4.*, stm, mtl > 2, rosezipper, process, directory, filepath, glib, random
+  Build-depends:     webkit == 0.12.*, containers, gtk, base == 4.*, 
+                     stm, mtl > 2, rosezipper, process, directory, 
+                     filepath, glib, random, global-variables
   Ghc-options:       -rtsopts
   C-sources:         cbits/cbits.c
   pkgconfig-depends: libsoup-gnome-2.4

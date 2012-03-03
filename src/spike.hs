@@ -33,11 +33,13 @@ import qualified Data.Foldable as F
 import qualified Data.List
 import qualified Data.Traversable as T
 
-import Utils
-import NotebookSimple
-import Datatypes
-import VisualBrowseTree
 import CFunctions
+import Commands
+import Datatypes
+import GlobalVariables
+import NotebookSimple
+import Utils
+import VisualBrowseTree
 
 debugBTree :: [Tree Page] -> IO ()
 debugBTree btree = do
@@ -301,6 +303,13 @@ noEntriesInBox box = do
   widgetShowAll box
 
 --------------
+findPageByID :: PageID -> IO (Maybe Page)
+findPageByID pid = do
+  pages <- readTVarIO browseTreeVar
+  return (listToMaybe $ catMaybes (map (F.find (\p -> pgIdent p == pid)) pages))
+
+
+--------------
 setupGlobals = do
   appDir <- getAppUserDataDirectory "Spike"
   createDirectoryIfMissing False appDir
@@ -309,8 +318,11 @@ setupGlobals = do
 
 main :: IO ()
 main = do
- initGUI
+ -- experimental
+ setupCommandControl
 
+ -- init gui & webkit
+ initGUI
  setupGlobals
  
  -- glue together gui. yuck.
@@ -329,9 +341,10 @@ main = do
  (\sw -> boxPackStart inside sw PackNatural 1) =<< newScrolledWindowWithViewPort childrenBox
 
  -- global state
-
- currentPage <- newTVarIO (error "current page is undefined for now...")
- btreeVar <- newTVarIO []
+ -- currentPage <- newTVarIO (error "current page is undefined for now...")
+ -- btreeVar <- newTVarIO []
+ let currentPage = GlobalVariables.currentPageVar
+     btreeVar = GlobalVariables.browseTreeVar
 
  -- define refresh layout and others
 
@@ -366,6 +379,16 @@ main = do
          notebookSimpleSelectPage siblingsNotebookSimple page
          viewPage page
          return ()
+
+ -- experimental: command listeners
+ registerListener (\ (ViewPageCommand pid) -> 
+                       do
+                         p <- findPageByID pid
+                         case p of
+                           Nothing -> return ()
+                           Just pg -> viewPage pg)
+
+ registerListener (\ (NewTopLevelPageCommand url) -> newTopPage btreeVar refreshLayout url >> return ())
 
  writeIORef viewPageRef viewPage
 

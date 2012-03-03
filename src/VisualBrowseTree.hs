@@ -1,7 +1,5 @@
 module VisualBrowseTree where
 
-
-
 import Graphics.UI.Gtk.WebKit.WebFrame
 import Graphics.UI.Gtk.WebKit.WebView
 import Graphics.UI.Gtk.WebKit.Download
@@ -29,6 +27,7 @@ import qualified Data.List
 import Utils
 import NotebookSimple
 import Datatypes
+import Commands
 
 import Data.Tree as Tree
 import qualified Data.Foldable as Foldable
@@ -120,7 +119,8 @@ visualBrowseTreeWidget viewPage btreeVar = do
                 t <- readTVarIO btreeVar
                 case lookupStablePageLink t uri of
                   Nothing -> print ("Page no longer exist: " ++ show uri)
-                  Just p -> viewPage p
+--                  Just p -> viewPage p
+                  Just p -> sendCommand (ViewPageCommand (pgIdent p)) -- viewPage p
 
     return True
 
