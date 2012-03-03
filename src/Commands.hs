@@ -75,7 +75,9 @@ setupCommandControl = do
 data ViewPageCommand = ViewPageCommand PageID deriving (Typeable, Show) -- which page
 data NewTopLevelPageCommand = NewTopLevelPageCommand URL deriving (Typeable, Show) -- url
 data NewChildPageCommand = NewChildPageCommand PageID URL deriving (Typeable, Show) -- parent, url
+data ClosePageCommand = ClosePageCommand PageID deriving (Typeable, Show) -- which page
 
 instance Command ViewPageCommand where
 instance Command NewChildPageCommand where
 instance Command NewTopLevelPageCommand where
+instance Command ClosePageCommand where

@@ -11,7 +11,8 @@ import Graphics.UI.Gtk.WebKit.WebView
 
 data Page = Page { pgWeb :: WebView
                  , pgWidget :: Widget
-                 , pgIdent :: Int }
+                 , pgIdent :: Int
+                 , pgStartURI :: String }
           deriving Typeable
           
 

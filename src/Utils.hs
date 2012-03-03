@@ -2,6 +2,8 @@ module Utils where
 
 import Control.Concurrent.STM
 import Graphics.UI.Gtk.WebKit.WebView
+import Graphics.UI.Gtk.WebKit.WebHistoryItem
+import Graphics.UI.Gtk.WebKit.WebBackForwardList
 import Graphics.UI.Gtk
 import Data.Tree
 import Data.Maybe
@@ -70,10 +72,14 @@ isSamePage p1 p2 = pgWidget p1 == pgWidget p2
 
 getPageTitle :: Page -> IO String
 getPageTitle p = do
-  mtit <- webViewGetTitle (pgWeb p)
-  case mtit of
-    Nothing -> return "??"
-    Just t -> return t
+  let web = pgWeb p
+  mtit <- webViewGetTitle web
+  muri <- webViewGetUri web
+  bflst <- webViewGetBackForwardList web
+
+  let titles = catMaybes [mtit, muri] ++ [pgStartURI p]
+
+  return $ head titles
 
 flattenToZipper :: Tree a -> [TreePos Full a]
 flattenToZipper n@(Node _ sub) = fromTree n : concatMap flattenToZipper sub

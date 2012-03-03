@@ -20,6 +20,11 @@ data NotebookSimple = NotebookSimple { ns_tabs :: HBox
                                      , ns_refresh :: IO ()
                                      }
 
+viewPagesSimpleNotebook :: [Page] -> NotebookSimple -> IO ()
+viewPagesSimpleNotebook pages nb = do
+  atomically $ writeTVar (ns_pages nb) pages
+  ns_refresh nb
+
 newScrolledWindowWithViewPort :: WidgetClass child => child -> IO ScrolledWindow
 newScrolledWindowWithViewPort child = do
   sw <- scrolledWindowNew Nothing Nothing
