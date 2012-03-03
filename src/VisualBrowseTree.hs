@@ -1,38 +1,33 @@
 module VisualBrowseTree where
 
-import Graphics.UI.Gtk.WebKit.WebFrame
-import Graphics.UI.Gtk.WebKit.WebView
-import Graphics.UI.Gtk.WebKit.Download
-import Graphics.UI.Gtk.WebKit.WebSettings
-import Graphics.UI.Gtk.WebKit.NetworkRequest
-import Graphics.UI.Gtk.WebKit.WebNavigationAction
--- import Graphics.UI.Gtk.WebKit.WebWindowFeatures
+import Control.Concurrent
+import Control.Concurrent.STM
+import Control.Monad
 
-import System.IO.Unsafe
-import System.Process
-import System.Exit
+import Data.Maybe
+import Data.Tree
+import Data.Tree.Zipper
+import qualified Data.Foldable as Foldable
+import qualified Data.Traversable as T
 
 import Graphics.UI.Gtk
-import Text.Printf
-import Control.Monad
-import Control.Concurrent.STM
-import Control.Concurrent
+import Graphics.UI.Gtk.WebKit.Download
+import Graphics.UI.Gtk.WebKit.NetworkRequest
+import Graphics.UI.Gtk.WebKit.WebFrame
+import Graphics.UI.Gtk.WebKit.WebNavigationAction
+import Graphics.UI.Gtk.WebKit.WebSettings
+import Graphics.UI.Gtk.WebKit.WebView
+import Graphics.UI.Gtk.WebKit.WebWindowFeatures
 
-import qualified Data.Foldable as F
-import qualified Data.Traversable as T
-import Data.Tree.Zipper
-import Data.Maybe
-import qualified Data.List
+import System.Exit
+import System.Process
+import Text.Printf
 
 import Utils
 import NotebookSimple
 import Datatypes
 import Commands
 
-import Data.Tree as Tree
-import qualified Data.Foldable as Foldable
-
-import System.Glib.GObject
 
 browseTreeToSVG :: [Tree Page] -> IO String
 browseTreeToSVG btree = do
