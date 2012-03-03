@@ -16,6 +16,11 @@ Installation
 
 After building with cabal-install the executable will be installed to ~/.cabal/bin/spike (assuming default cabal-install config). You can either add this folder to your PATH or copy the 'spike' executable anywhere you like. This will be the only file you will need to run the browser. The binary 'spike' will also be present in spike/dist/build/spike/spike path.
 
+Runtime dependencies
+--------------------
+
+Currently the only (soft) runtime dependency is Graphviz suite. It is needed for "Visual Browse Tree" widget which while being useful is not strictly necessary.
+
 Usage
 -----
 
