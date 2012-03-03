@@ -18,7 +18,9 @@ Source-repository head
 
 Executable spike
   Main-is:           spike.hs
-  Other-modules:     Utils, VisualBrowseTree, Datatypes, Graphs, CFunctions, NotebookSimple, GlobalVariables, Commands, BrowseTreeOperations
+  Other-modules:     Utils, VisualBrowseTree, Datatypes, Graphs, 
+                     CFunctions, NotebookSimple, GlobalVariables, 
+                     Commands, BrowseTreeOperations
   Hs-source-dirs:    src
   Build-depends:     webkit == 0.12.*, containers, gtk, base == 4.*, 
                      stm, mtl > 2, rosezipper, process, directory, 
