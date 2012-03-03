@@ -1,6 +1,8 @@
 {-# LANGUAGE PackageImports, FlexibleInstances, DoRec, ForeignFunctionInterface #-}
 module Main where
 
+import Graphics.UI.Gtk
+
 import Graphics.UI.Gtk.WebKit.WebFrame
 import Graphics.UI.Gtk.WebKit.WebView
 import Graphics.UI.Gtk.WebKit.Download
@@ -8,25 +10,28 @@ import Graphics.UI.Gtk.WebKit.WebSettings
 import Graphics.UI.Gtk.WebKit.NetworkRequest
 import Graphics.UI.Gtk.WebKit.WebNavigationAction
 
+import Control.Applicative
+import Control.Concurrent
+import Control.Concurrent.STM
+import Control.Monad
+
+import Data.IORef
+import Data.Maybe
+import Data.Tree as Tree
+import Data.Tree.Zipper
+
+import System.Directory
+import System.Exit
+import System.FilePath
 import System.IO.Unsafe
 import System.Process
-import System.Directory
-import System.FilePath
-import System.Exit
+import System.Random
 
-import Graphics.UI.Gtk
 import Text.Printf
-import Control.Monad
-import Control.Concurrent.STM
-import Control.Concurrent
-import Control.Applicative
-import Data.IORef
 
 import qualified Data.Foldable as F
-import qualified Data.Traversable as T
-import Data.Tree.Zipper
-import Data.Maybe
 import qualified Data.List
+import qualified Data.Traversable as T
 
 import Utils
 import NotebookSimple
@@ -34,14 +39,10 @@ import Datatypes
 import VisualBrowseTree
 import CFunctions
 
-import Data.Tree as Tree
-import System.Random
-
 debugBTree :: [Tree Page] -> IO ()
 debugBTree btree = do
   btree' <- mapM (T.mapM (\p -> fmap show $ getPageTitle p)) btree
   putStrLn (drawForest btree')
-
 
 -- operations on single page
 -- | install listeners for various signals
@@ -62,7 +63,6 @@ hookupWebView web createSubPage = do
                       return False
 
   on web newWindowPolicyDecisionRequested $ foo "newWindowPolicyDecisionRequested"
--- on web navigationPolicyDecisionRequested ...
 
   on web createWebView $ \ frame -> do
     print "createWebView"
@@ -82,8 +82,6 @@ hookupWebView web createSubPage = do
  -- printRequested
  -- statusBarTextChanged
   on web consoleMessage $ \ s1 s2 i s3 -> print ("[JavaScript/Console message]: ",s1,s2,i,s3) >> return False
- -- closeWebView
- -- titleChanged
 
   hoveredLink <- newTVarIO Nothing
 
@@ -126,8 +124,6 @@ hookupWebView web createSubPage = do
           -- otherwise
           _ -> return False
 
---        print =<< webNavigationActionGetTargetFrame webNavAct
---        return False
       _ -> do
         print (MyShow navReason)
         return False
@@ -135,16 +131,6 @@ hookupWebView web createSubPage = do
   -- new window via JavaScript
   on web newWindowPolicyDecisionRequested $ \ webframe networkReq webNavAct webPolDec -> do
     return False
-
---  on web Graphics.UI.Gtk.WebKit.WebView.populatePopup $ \ menu -> do
---    print ("[populate popup]")
---    hovered <- readTVarIO hoveredLink
---    case hovered of
---      Nothing -> return ()
---      Just uri -> do
---                   menuShellAppend menu =<< menuItemNewWithLabel ("1: " ++ uri)
---                   menuShellAppend menu =<< menuItemNewWithLabel ("2: " ++ uri)
---                   widgetShowAll menu
 
   -- statusBarTextChanged
 
@@ -226,16 +212,6 @@ newWeb btreeSt refreshLayout url = do
 
   return ww
 
--- move to new page, discard any hiNext out there
-navigateToPage :: Page -> String -> IO ()
-navigateToPage page url = do
-  atomically $ do
-    hist <- readTVar (pgHistory page)
-    let h' = Hist url (hiNow hist : hiPrev hist) []
-    writeTVar (pgHistory page) h'
-
-  webViewLoadUri (pgWeb page) url
-
 -- operations on tree
 newTopPage :: BrowseTreeState -> IO () -> String -> IO Page
 newTopPage btvar refreshLayout url = do
@@ -253,9 +229,10 @@ newLeafURL ww url = do
 
 newPage :: (Widget, WebView) -> String -> IO Page
 newPage (widget,webv) url = do
-  hist <- newTVarIO (Hist url [] [])
   ident <- randomIO -- probably should make better effort
-  return (Page {pgWidget=widget, pgWeb=webv, pgHistory=hist, pgIdent=ident})
+  return (Page {pgWidget=widget, 
+                pgWeb=webv, 
+                pgIdent=ident})
 
 newLeaf :: Page -> Tree Page
 newLeaf page = Node page []
@@ -267,7 +244,6 @@ addChild btree parent child = let
     in map aux btree
 
 -- query functions
-
 findPageWidget :: BrowseTree -> Widget -> Maybe Page
 findPageWidget btree w = let fun p = pgWidget p == w
                              flat = concatMap flatten btree
@@ -311,7 +287,6 @@ subtrees' :: [Tree t] -> [Tree t]
 subtrees' = concatMap subtrees
 
 -- notebook synchronization
-
 viewPagesSimpleNotebook :: [Page] -> NotebookSimple -> IO ()
 viewPagesSimpleNotebook pages nb = do
   atomically $ writeTVar (ns_pages nb) pages
@@ -326,7 +301,6 @@ noEntriesInBox box = do
   widgetShowAll box
 
 --------------
-
 setupGlobals = do
   appDir <- getAppUserDataDirectory "Spike"
   createDirectoryIfMissing False appDir
@@ -353,7 +327,6 @@ main = do
  (\sw -> boxPackStart inside sw PackNatural 1) =<< newScrolledWindowWithViewPort parentsBox
  boxPackStart inside (ns_widget siblingsNotebookSimple) PackGrow 1
  (\sw -> boxPackStart inside sw PackNatural 1) =<< newScrolledWindowWithViewPort childrenBox
-
 
  -- global state
 
@@ -397,7 +370,6 @@ main = do
  writeIORef viewPageRef viewPage
 
  -- create root page
-
  spawnHomepage
  newTopPage btreeVar refreshLayout "http://news.google.com"
 

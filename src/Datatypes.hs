@@ -9,18 +9,12 @@ import Control.Concurrent.STM
 import Data.Tree
 import Foreign
 
-data History = Hist { hiNow :: String, hiPrev :: [String], hiNext :: [String] } deriving Show
-
 data Page = Page { pgWeb :: WebView
                  , pgWidget :: Widget
-                 , pgHistory :: TVar History
                  , pgIdent :: Int }
 
 -- newtype PageLink = PageLink (ForeignPtr GObject) deriving (Eq,Show)
 type PageLink = String
-
-instance Show Page where
-    show pg = "Page { pgWeb=?, pgWidget=?, pgHistory=" ++ show (unsafeDupablePerformIO (readTVarIO (pgHistory pg))) ++ "}"
 
 instance Eq Page where
     p1 == p2 = pgWidget p1 == pgWidget p2

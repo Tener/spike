@@ -71,9 +71,8 @@ isSamePage p1 p2 = pgWidget p1 == pgWidget p2
 getPageTitle :: Page -> IO String
 getPageTitle p = do
   mtit <- webViewGetTitle (pgWeb p)
-  h <- readTVarIO (pgHistory p)
   case mtit of
-    Nothing -> return (hiNow h)
+    Nothing -> return "??"
     Just t -> return t
 
 flattenToZipper :: Tree a -> [TreePos Full a]
