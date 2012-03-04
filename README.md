@@ -1,7 +1,23 @@
+About project
+-------------
+
+Why would one create yet another web browser when there is so much competition in that area already?
+
+Well, Spike is not intended to be a serious competitor. It's purpose is to show a concept and try to provide it's simple implementation.
+
+The core idea is that **each history of browsing a Web forms a tree**. I tried to build on this concept and so far this is the result.
+
+Code quality
+------------
+
+Being experimental means that some parts of the code should really be rewritten. I've had some major issues with Webkit too: plugins are disabled because they hurt stability. Even then the webkit sometimes decides to segfault... and I cannot really do anything about it. It's way too big project for me to debug.
+
+Still, patches are welcome!
+
 Building
 --------
 
-Building is only supported on Linux. This is because of GTK port of Webkit: I didn't manage to build 
+Building is only supported on Linux. This is because of GTK port of Webkit: I didn't manage to build it on Windows and I don't have Mac to check it there.
 The requirements are pretty standard: [Haskell Platform](http://hackage.haskell.org/platform/), [Haskell bindings for gtk](http://projects.haskell.org/gtk2hs/) and [gtkwebkit](http://hackage.haskell.org/package/webkit).
 
 Haskell Platform should be packaged for your distribution/OS already and so should be gtk's bindings. This is unlikely for webkit bindings.
