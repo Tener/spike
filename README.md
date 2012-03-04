@@ -24,6 +24,8 @@ Currently the only (soft) runtime dependency is Graphviz suite. It is needed for
 Usage
 -----
 
+Shortcuts: Ctrl+T opens new tab (sibling to currently viewed page), Ctrl+N opens top-level page. Closing pages is not currently supported.
+
 Please see the [video on Youtube](http://www.youtube.com/watch?v=C543-52kkZQ).
 
 User data is stored in ~/.Spike/ folder.

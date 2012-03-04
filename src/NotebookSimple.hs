@@ -28,10 +28,10 @@ viewPagesSimpleNotebook pages nb = do
 newScrolledWindowWithViewPort :: WidgetClass child => child -> IO ScrolledWindow
 newScrolledWindowWithViewPort child = do
   sw <- scrolledWindowNew Nothing Nothing
-  scrolledWindowSetPolicy sw PolicyAutomatic PolicyAutomatic
+  scrolledWindowSetPolicy sw PolicyAlways PolicyNever
   scrolledWindowAddWithViewport sw child
   (wx,wy) <- widgetGetSizeRequest child
-  widgetSetSizeRequest sw (wx+5) (wy+5)
+  widgetSetSizeRequest sw (wx+5) (wy+40)
   return sw
 
 notebookSimpleNew :: (Page -> IO ()) -> IO NotebookSimple
@@ -40,7 +40,7 @@ notebookSimpleNew focusOnPage = do
   contentBox <- hBoxNew False 1
   vbox <- vBoxNew False 1
 
-  widgetSetSizeRequest buttonsBox (-1) 40
+  widgetSetSizeRequest buttonsBox (-1) 10
 
   (\sw -> boxPackStart vbox sw PackNatural 1) =<< newScrolledWindowWithViewPort buttonsBox
   boxPackStart vbox contentBox PackGrow 1

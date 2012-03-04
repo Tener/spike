@@ -201,14 +201,15 @@ newWeb btreeSt refreshLayout url = do
   widgetShowAll page
 
   let ww = (thisWidget,web)
-      newChildPage = do
+      newChildPageDefault = newChildPage "http://google.com"
+      newChildPage url = do
         print "[newChildPage called]"
         btree <- readTVarIO btreeSt
         debugBTree btree
         case findPageWidget btree thisWidget of
           Just p -> do
-            ww' <- newWeb btreeSt refreshLayout "about:blank"
-            p' <- newPage ww' "about:blank" -- TODO: win the battle over the power to navigate the web view.
+            ww' <- newWeb btreeSt refreshLayout url
+            p' <- newPage ww' url -- TODO: win the battle over the power to navigate the web view.
             let btree' = addChild btree p p'
             atomically $ writeTVar btreeSt btree'
             refreshLayout
@@ -216,7 +217,13 @@ newWeb btreeSt refreshLayout url = do
           Nothing -> do
             error "findPageWidget returned Nothing, can't provide a new window"
 
-  hookupWebView web newChildPage
+  -- TODO: handle this more efficiently
+  registerListener (\ (NewChildPageCommand pid url) -> do
+                          p <- findPageByView pgWidget thisWidget
+                          when ((fmap pgIdent p) == Just pid) (newChildPage url >> return ())
+                   )
+
+  hookupWebView web newChildPageDefault
 
   return ww
 

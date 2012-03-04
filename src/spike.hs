@@ -13,6 +13,7 @@ import Control.Applicative
 import Control.Concurrent
 import Control.Concurrent.STM
 import Control.Monad
+import Control.Monad.Trans (liftIO)
 
 import Data.IORef
 import Data.Maybe
@@ -73,8 +74,8 @@ main = do
  siblingsNotebookSimple <- notebookSimpleNew (\p -> do { fun <- readIORef viewPageRef; fun p}) :: IO NotebookSimple
  childrenBox <- hBoxNew False 1  :: IO HBox
 
- widgetSetSizeRequest parentsBox (-1) 40
- widgetSetSizeRequest childrenBox (-1) 40
+ widgetSetSizeRequest parentsBox (-1) 10
+ widgetSetSizeRequest childrenBox (-1) 10
 
  inside <- vBoxNew False 1
  (\sw -> boxPackStart inside sw PackNatural 1) =<< newScrolledWindowWithViewPort parentsBox
@@ -145,6 +146,27 @@ main = do
               containerChild := inside,
               windowAllowGrow := True ]
  widgetShowAll window
+
+ -- global shortcuts
+ window `on` keyPressEvent $ do
+         evM <- eventModifier
+         evN <- (keyName . keyvalToLower) `fmap` eventKeyVal
+         
+         liftIO $ print (evM, evN)
+
+         let newChildPage = liftIO $ do
+               bt <- readTVarIO btreeVar
+               cp <- readTVarIO currentPage
+               case getPageParent bt cp of
+                 Nothing -> sendCommand (NewTopLevelPageCommand "http://google.com")
+                 Just par -> sendCommand (NewChildPageCommand (pgIdent $ rootLabel par) "http://google.com")
+
+             newTopLevel = liftIO $ sendCommand (NewTopLevelPageCommand "http://google.com")
+
+         case (evM, evN) of
+           ([Control],"t") -> newChildPage >> return True
+           ([Control],"n") -> newTopLevel >> return True
+           _ -> return False
 
  -- tree view window
  visualBrowseTreeWindow viewPage btreeVar

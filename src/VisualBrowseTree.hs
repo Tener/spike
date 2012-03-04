@@ -54,7 +54,7 @@ browseTreeToSVG btree = do
 
       btreeZip = concatMap flattenToZipper' btree' -- ellipsis t 15
       labels = unlines [ printf "d%d [URL=\"%s\", shape=polygon, fixedsize=true, fontsize=8, width=1.25, height=0.25, tooltip=\"%s\", label=\"%s\"];"
-                                i link t (ellipsis t 10) | (i,(t,link)) <- map label btreeZip ]
+                                i link t (ellipsis t 18) | (i,(t,link)) <- map label btreeZip ]
       edges = unlines [ printf "d%d -> d%d;" (fst . label . fromJust . parent $ z ) (fst . label $ z)
                             | z <- btreeZip,
                               parent z /= Nothing]
