@@ -7,6 +7,16 @@ Well, Spike is not intended to be a serious competitor. It's purpose is to show 
 
 The core idea is that **each history of browsing a Web forms a tree**. I tried to build on this concept and so far this is the result.
 
+Why a new browser
+-----------------
+
+Writing a new browser isn't the only way to show the concept. There are extensions which implement just that:
+
+Firefox: [1](https://addons.mozilla.org/en-US/firefox/addon/tree-style-tab/)
+Google Chrome: [1](https://chrome.google.com/webstore/detail/ioigddmjfpphkbamgbaolfkpifddnaje) [2](https://chrome.google.com/webstore/detail/oiabeebnmckkdjloeofbfladabfhedlg)
+
+I wanted to express it in a new way, have some fun and learn a thing or two.
+
 Code quality
 ------------
 
