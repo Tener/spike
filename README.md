@@ -24,7 +24,7 @@ Currently the only (soft) runtime dependency is Graphviz suite. It is needed for
 Usage
 -----
 
-Please see the video on Youtube (TODO).
+Please see the [video on Youtube](http://www.youtube.com/watch?v=C543-52kkZQ).
 
 User data is stored in ~/.Spike/ folder.
 
