@@ -1,4 +1,3 @@
-{-# LANGUAGE PackageImports, FlexibleInstances, DoRec, ForeignFunctionInterface #-}
 module Main where
 
 import Graphics.UI.Gtk
