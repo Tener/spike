@@ -52,7 +52,7 @@ Usage
 
 Shortcuts: Ctrl+T opens new tab (sibling to currently viewed page), Ctrl+N opens top-level page. Closing pages is not currently supported.
 
-Please see the [video on Youtube](http://www.youtube.com/watch?v=C543-52kkZQ).
+Please see the [video on Youtube](http://www.youtube.com/watch?v=C543-52kkZQ). Here is [another](http://www.youtube.com/watch?v=0T8JKtd8Rec) one showing interaction with [XMonad](http://xmonad.org/).
 
 User data is stored in ~/.Spike/ folder.
 
