@@ -23,8 +23,8 @@ Executable spike
                      Commands, BrowseTreeOperations
   Hs-source-dirs:    src
   Build-depends:     webkit == 0.12.*, containers, gtk, base == 4.*, 
-                     stm, mtl > 2, rosezipper, process, directory, 
-                     filepath, glib, random, global-variables
+                     stm, mtl > 2, rosezipper == 0.2.*, process, directory, 
+                     filepath, glib, random, global-variables == 1.0.*
   Ghc-options:       -rtsopts
   C-sources:         cbits/cbits.c
   pkgconfig-depends: libsoup-gnome-2.4
