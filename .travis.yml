@@ -1,6 +1,11 @@
 language: haskell
+
 install:
    - sudo apt-get install libwebkitgtk-dev
+   - wget http://www.haskell.org/ghc/dist/7.4.1/ghc-7.4.1-x86_64-unknown-linux.tar.bz2
+   - tar xvf ghc-7.4.1-x86_64-unknown-linux.tar.bz2
+   - cd ghc-7.4.1 && ./configure --prefix=/ && make install
+   - ghc --version
    - cabal update
    - sudo cabal install --global gtk2hs-buildtools
    - cabal install
