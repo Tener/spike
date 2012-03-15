@@ -2,4 +2,5 @@ language: haskell
 install:
    - cabal update
    - sudo cabal install --global gtk2hs-buildtools
+   - sudo apt-get install webkit
    - cabal install
